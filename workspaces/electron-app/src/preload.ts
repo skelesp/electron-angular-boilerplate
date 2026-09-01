@@ -2,11 +2,7 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from 'electron';
-import {
-  AppApiRegistry,
-  ElectronAPI,
-  isValidChannel,
-} from '@electron-angular-boilerplate/shared';
+import { AppApiRegistry, ElectronAPI, isValidChannel } from '@electron-angular-boilerplate/shared';
 
 // Type-safe wrapper for IPC communication
 const electronAPI: ElectronAPI = {
@@ -23,6 +19,4 @@ const electronAPI: ElectronAPI = {
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 
-console.log(
-  '[Preload.ts] The preload script v1.0 has been loaded successfully.'
-);
+console.log('[Preload.ts] The preload script v1.0 has been loaded successfully.');

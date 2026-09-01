@@ -44,9 +44,7 @@ export type Handlers<T extends ApiRegistry> = {
  * of the success payload. This is the single source of truth: the runtime
  * validator and the TS type (via z.infer) are derived from the same definition.
  */
-export const apiResponseSchema = <TDataSchema extends ZodTypeAny>(
-  dataSchema: TDataSchema
-) =>
+export const apiResponseSchema = <TDataSchema extends ZodTypeAny>(dataSchema: TDataSchema) =>
   z.discriminatedUnion('status', [
     z.object({
       status: z.literal('success'),
@@ -95,8 +93,6 @@ export interface EndpointDefinition<
 export type InferEndpoints<T extends Record<string, EndpointDefinition>> = {
   [K in keyof T as T[K]['channel']]: ApiEndpoint<
     z.infer<T[K]['inputSchema']>,
-    z.infer<T[K]['outputSchema']> extends ApiResponse<unknown>
-      ? z.infer<T[K]['outputSchema']>
-      : never
+    z.infer<T[K]['outputSchema']> extends ApiResponse<unknown> ? z.infer<T[K]['outputSchema']> : never
   >;
 };

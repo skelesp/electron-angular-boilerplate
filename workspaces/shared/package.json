@@ -11,7 +11,7 @@
     "build": "npm run clean && npm run compile",
     "build:prod": "tsc --build .",
     "watch": "tsc --build . --watch",
-    "lint": "eslint ./src --ext .ts,.js || exit 0",
+    "lint": "eslint ./src || exit 0",
     "lint:fix": "npm run lint -- --fix"
   },
   "keywords": [],

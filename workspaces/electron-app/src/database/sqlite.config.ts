@@ -11,7 +11,5 @@ export const AppDataSource = new DataSource({
 
 export async function initializeDatabase() {
   await AppDataSource.initialize();
-  console.log(
-    `[ORM config] Connection established with SQLite database: ${AppDataSource.options.database}`
-  );
+  console.log(`[ORM config] Connection established with SQLite database: ${AppDataSource.options.database}`);
 }
