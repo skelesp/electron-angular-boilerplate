@@ -1,0 +1,8 @@
+{
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=827846
+  "recommendations": [
+    "angular.ng-template",
+    "yy0931.vscode-sqlite3-editor",
+    "dbaeumer.vscode-eslint"
+  ]
+}

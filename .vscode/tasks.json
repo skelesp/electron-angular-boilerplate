@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build.Main",
+      "type": "shell",
+      "command": "npm run build:electron-app",
+      "isBackground": false,
+      "group": "build"
+    },
+    {
+      "label": "Serve.Angular",
+      "type": "shell",
+      "command": "npm run start:angular-app",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*",
+          "endsPattern": "^.*Local:.*http://localhost:4200/.*"
+        }
+      }
+    },
+    {
+      "label": "Build.Shared",
+      "type": "shell",
+      "command": "npm run build:shared",
+      "isBackground": false,
+      "group": "build"
+    },
+    {
+      "label": "Build.All",
+      "dependsOn": ["Build.Shared", "Serve.Angular", "Build.Main"],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Lint All",
+      "type": "shell",
+      "command": "npm run lint",
+      "group": "build",
+      "problemMatcher": "$eslint-stylish"
+    }
+  ]
+}

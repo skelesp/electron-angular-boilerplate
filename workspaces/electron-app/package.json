@@ -1,0 +1,33 @@
+{
+  "name": "electron-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "lint": "eslint --ext .ts,.js . || exit 0",
+    "lint:fix": "eslint --ext .ts,.js . --fix",
+    "start": "tsc && electron .",
+    "compile": "tsc --build . --verbose",
+    "build": "npm run clean && npm run compile",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "rimraf dist && rimraf tsconfig.tsbuildinfo"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/electron": "^1.6.10",
+    "@types/node": "^22.5.4",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "electron": "^33.2.1",
+    "eslint-import-resolver-typescript": "^3.6.3"
+  },
+  "dependencies": {
+    "@electron-angular-boilerplate/shared": "^0.0.x",
+    "reflect-metadata": "^0.2.2",
+    "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.20"
+  }
+}

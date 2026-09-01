@@ -1,0 +1,23 @@
+{
+  "name": "@electron-angular-boilerplate/shared",
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "clean": "rimraf dist && rimraf tsconfig.tsbuildinfo",
+    "dev": "tsc --watch",
+    "compile": "tsc --build . --verbose",
+    "build": "npm run clean && npm run compile",
+    "build:prod": "tsc --build .",
+    "watch": "tsc --build . --watch",
+    "lint": "eslint ./src --ext .ts,.js || exit 0",
+    "lint:fix": "npm run lint -- --fix"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

@@ -1,0 +1,29 @@
+.sticky-header {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+  background-color: #0044cc;
+  color: white;
+}
+
+.sticky-footer {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  z-index: 1000;
+  background-color: #f1f1f1;
+  color: #333;
+  padding: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.content {
+  padding-top: 64px; /* Height of the header */
+  padding-bottom: 64px; /* Height of the footer */
+  min-height: calc(100vh - 128px); /* Full height minus header and footer */
+  text-align: center;
+}

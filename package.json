@@ -1,0 +1,56 @@
+{
+  "name": "electron-angular-boilerplate",
+  "version": "0.0.0",
+  "description": "Boilerplate for an Angular frontend in Electron, with a shared, runtime-validated API contract and a SQLite database.",
+  "keywords": [
+    "Angular",
+    "Electron",
+    "boilerplate",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "workspaces/*"
+  ],
+  "scripts": {
+    "start": "concurrently \"npm run watch:shared\" \"npm run start:angular-app\" \"npm run start:electron-app\"",
+    "start:angular-app": "npm --workspace=workspaces/angular-app run start",
+    "start:electron-app": "npm --workspace=workspaces/electron-app run start",
+    "build:angular-app": "npm --workspace=workspaces/angular-app run build",
+    "build:electron-app": "npm --workspace=workspaces/electron-app run build",
+    "build:shared": "npm --workspace=workspaces/shared run build",
+    "watch:shared": "npm --workspace=workspaces/shared run watch",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "concurrently \"npm run lint:angular\" \"npm run lint:electron\" \"npm run lint:shared\"",
+    "lint:angular": "npm --workspace=workspaces/angular-app run lint",
+    "lint:electron": "npm --workspace=workspaces/electron-app run lint",
+    "lint:shared": "npm --workspace=workspaces/shared run lint",
+    "lint:fix": "concurrently \"npm run lint:angular:fix\" \"npm run lint:electron:fix\" \"npm run lint:shared:fix\"",
+    "lint:angular:fix": "npm --workspace=workspaces/angular-app run lint:fix",
+    "lint:electron:fix": "npm --workspace=workspaces/electron-app run lint:fix",
+    "lint:shared:fix": "npm --workspace=workspaces/shared run lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "concurrently \"npm run clean:angular\" \"npm run clean:electron\" \"npm run clean:shared\"",
+    "clean:angular": "npm --workspace=workspaces/angular-app run clean",
+    "clean:electron": "npm --workspace=workspaces/electron-app run clean",
+    "clean:shared": "npm --workspace=workspaces/shared run clean"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "concurrently": "^9.0.1",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsdoc": "^50.5.0",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.3.3",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.4.0"
+  }
+}

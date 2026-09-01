@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json", // Extend the root tsconfig
+  "compilerOptions": {
+    "module": "CommonJS",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "composite": true,
+    "declaration": true,
+    "experimentalDecorators": true
+  },
+  "include": ["src"],
+  "references": []
+}

@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Angular app in Electron",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9224,
+      "url": "http://localhost:4200/",
+      "webRoot": "${workspaceFolder}/workspaces/angular-app",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/src/*"
+      },
+      "timeout": 15000,
+      "trace": true
+    },
+    {
+      "name": "Electron: Main",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/workspaces/electron-app",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
+      "windows": {
+        "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
+      },
+      "args": [
+        ".",
+        "--remote-debugging-port=9224",
+        "--disable-session-crashed-bubble",
+        "--disable-restore-session-state"
+      ],
+      "outputCapture": "std",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "sourceMaps": true,
+      "smartStep": true,
+      "trace": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Electron+Angular debug",
+      "configurations": ["Electron: Main", "Angular app in Electron"],
+      "preLaunchTask": "Build.All"
+    }
+  ]
+}
