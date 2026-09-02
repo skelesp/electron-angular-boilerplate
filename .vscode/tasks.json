@@ -4,7 +4,7 @@
     {
       "label": "Build.Main",
       "type": "shell",
-      "command": "npm run build:electron-app",
+      "command": "npm --workspace=workspaces/electron-app run compile",
       "isBackground": false,
       "group": "build"
     },
@@ -28,7 +28,7 @@
     {
       "label": "Build.Shared",
       "type": "shell",
-      "command": "npm run build:shared",
+      "command": "npm --workspace=workspaces/shared run compile",
       "isBackground": false,
       "group": "build"
     },

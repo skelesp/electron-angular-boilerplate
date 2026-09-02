@@ -9,11 +9,7 @@
       "url": "http://localhost:4200/",
       "webRoot": "${workspaceFolder}/workspaces/angular-app",
       "sourceMaps": true,
-      "sourceMapPathOverrides": {
-        "webpack:///./src/*": "${webRoot}/src/*"
-      },
-      "timeout": 15000,
-      "trace": true
+      "timeout": 15000
     },
     {
       "name": "Electron: Main",
@@ -33,15 +29,15 @@
       "outputCapture": "std",
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
       "sourceMaps": true,
-      "smartStep": true,
-      "trace": true
+      "smartStep": true
     }
   ],
   "compounds": [
     {
       "name": "Electron+Angular debug",
       "configurations": ["Electron: Main", "Angular app in Electron"],
-      "preLaunchTask": "Build.All"
+      "preLaunchTask": "Build.All",
+      "stopAll": true
     }
   ]
 }
