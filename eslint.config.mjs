@@ -7,14 +7,7 @@ import prettierRecommended from 'eslint-plugin-prettier/recommended';
 
 const baseConfig = tseslint.config(
   {
-    ignores: [
-      '**/dist/**',
-      '**/.dist/**',
-      '**/coverage/**',
-      '**/.webpack/**',
-      '**/out/**',
-      '**/.angular/**',
-    ],
+    ignores: ['**/dist/**', '**/.dist/**', '**/coverage/**', '**/.webpack/**', '**/out/**', '**/.angular/**'],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
@@ -34,7 +27,7 @@ const baseConfig = tseslint.config(
         },
       ],
     },
-  },
+  }
 );
 
 export default baseConfig;

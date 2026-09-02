@@ -1,10 +1,8 @@
 {
   "eslint.lintTask.enable": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "prettier.enableDebugLogs": true,
   "editor.formatOnSave": true,
   "prettier.requireConfig": true,
-  "eslint.validate": [],
   "explorer.fileNesting.patterns": {
     //"*.component.ts": "${capture}.component.html, ${capture}.component.css, ${capture}.component.spec.ts"
   }

@@ -1,4 +1,11 @@
 node_modules
 dist
 build
+coverage
+.angular
+.webpack
+out
 *.d.ts
+*.tsbuildinfo
+package-lock.json
+data

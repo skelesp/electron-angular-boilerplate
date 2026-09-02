@@ -1,4 +1,7 @@
 {
+  // Shared base compilerOptions, extended by every workspace's own tsconfig.json.
+  // This file is never compiled directly - each workspace builds independently
+  // and manages its own "references" for its own project graph.
   "compilerOptions": {
     "target": "ESNext",
     "strict": true,
@@ -7,9 +10,5 @@
     "sourceMap": true,
     "forceConsistentCasingInFileNames": true,
     "preserveSymlinks": true
-  },
-  "references": [
-    { "path": "./workspaces/electron-app" },
-    { "path": "./workspaces/shared" }
-  ]
+  }
 }

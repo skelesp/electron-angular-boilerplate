@@ -4,16 +4,17 @@
   "type": "module",
   "scripts": {
     "ng": "ng",
-    "lint": "eslint . || exit 0",
+    "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "start": "ng serve",
     "build": "ng build --base-href ./",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "clean": "rimraf .angular"
+    "clean": "rimraf dist .angular"
   },
   "private": true,
   "dependencies": {
+    "@electron-angular-boilerplate/shared": "^0.0.x",
     "@angular/cdk": "^22.1.4",
     "@angular/common": "^22.1.4",
     "@angular/compiler": "^22.1.4",
