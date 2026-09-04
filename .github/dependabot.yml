@@ -36,10 +36,18 @@ updates:
           - '@vitest/*'
           - 'jsdom'
           - '@playwright/test'
+      # electron-builder and electron-updater ship from the same project and share an
+      # exactly-pinned builder-util-runtime; upgrading one without the other can mismatch it.
+      packaging:
+        patterns:
+          - 'electron-builder'
+          - 'electron-updater'
     ignore:
-      # Electron majors move the bundled Node/Chromium ABI, which forces a native rebuild
-      # of better-sqlite3 and can break the packaged app in ways CI does not build (CI
-      # lints/builds/tests only - it produces no installers). Take these deliberately.
+      # Electron majors move the bundled Node/Chromium ABI, which forces a native rebuild of
+      # better-sqlite3 and can break the packaged app. CI does now package and launch the app
+      # on all three platforms, which catches most of that - but it builds with --dir and does
+      # no code signing, so an installer/signing regression would still slip through. Take
+      # these deliberately, with a real `npm run package`.
       - dependency-name: electron
         update-types: [version-update:semver-major]
       - dependency-name: better-sqlite3

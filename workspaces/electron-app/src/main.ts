@@ -5,6 +5,7 @@ import { projectPaths } from './config/project';
 import { logger } from './logger';
 import { buildAppMenu } from './menu';
 import { applyProductionCsp, attachNavigationGuards, DEV_SERVER_ORIGIN, RENDERER_INDEX } from './security';
+import { initializeAutoUpdater } from './updater';
 import { loadWindowState, saveWindowState } from './windowState';
 
 let mainWindow: BrowserWindow | null;
@@ -123,6 +124,9 @@ if (!isPrimaryInstance) {
     await initializeDatabase();
     registerAllHandlers();
     createWindow();
+    // After the window, so a slow or failing update check never delays first paint. It is a
+    // no-op in dev and in builds without an update feed - see updater.ts.
+    initializeAutoUpdater();
   });
 
   // Applies the guards to every webContents, not just the main window's - including any that

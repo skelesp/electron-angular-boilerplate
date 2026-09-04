@@ -28,8 +28,15 @@ npm start                      # build:shared, then run watch:shared + Angular d
   "Testing" below). Single workspace: `npm --workspace=workspaces/<name> run test`.
   - Vitest has no built-in "single spec file" CLI narrowing in this setup; use `.only`/`.skip`
     on a `describe`/`it` in the spec instead, or pass a filename to `vitest run <pattern>`.
-- `npm run test:e2e` — packages the app (`electron-builder --dir`) and runs the Playwright suite
-  in `workspaces/e2e` against it. Not part of `npm run test` or CI — see "Testing" below.
+- `npm run test:coverage` — the same three suites with coverage on, writing `lcov.info`,
+  `coverage-summary.json` and a terminal summary into each workspace's `coverage/`.
+- `npm run coverage:summary` — renders those per-workspace totals as a markdown table (and
+  appends it to `$GITHUB_STEP_SUMMARY` under Actions). See "Release engineering" below.
+- `npm run package:dir` — `electron-builder --dir --publish never`: the packaged app tree
+  without an installer. Much faster than a full build and what the e2e suite runs against.
+- `npm run test:e2e` — runs `package:dir`, then the Playwright suite in `workspaces/e2e`
+  against the result. Not part of `npm run test`, but it _does_ run in CI on all three
+  platforms — see "Testing" and "Release engineering" below.
 - `npm run clean` — cleans build output in every workspace.
 - `npm run package` — builds everything and runs `electron-builder` (via its `prepackage`/
   `postpackage` hooks) to produce an installer/unpacked app under `/release`. See "Packaging" below.
@@ -95,8 +102,28 @@ place that touches `window.electronAPI`. Individual Angular services should go t
 `npm run package` (root) runs `electron-builder` (config in the root `package.json`'s `build`
 field, `directories.app` pointed at `workspaces/electron-app`) to produce an installer/unpacked
 app under `/release`. `appId`/`productName` in that config are placeholders — template
-consumers should change them. No code-signing is configured. This repo's CI
-(`.github/workflows/ci.yml`) only lints/builds/tests, it does not produce installers.
+consumers should change them. No code-signing is configured (see "Auto-update" below for
+what that costs you). CI packages the app with `--dir` on all three platforms on every PR;
+full installers are built only by the release workflow, on a tag.
+
+Three details in the `build` config exist for the release/auto-update path specifically:
+
+- **`publish: [{ provider: "github" }]` with no `owner`/`repo`.** electron-builder fills those
+  in from the git remote at build time, so a fork built by its own Actions publishes to _its_
+  releases, not to this repo's. That is also why there is deliberately no `repository` field in
+  any `package.json` here — it would take precedence and point every fork back at the
+  original. The config's real job is to make electron-builder emit the `latest*.yml` update
+  metadata and the packaged `app-update.yml`; it does not by itself publish anything.
+- **The app version comes from `workspaces/electron-app/package.json`**, because that is what
+  `directories.app` points at — _not_ from the root `package.json` (which stays at `0.0.0`).
+  electron-builder also derives the release tag it uploads into as `v${version}`. The release
+  workflow therefore writes the git tag into that file before building; see below.
+- **`mac.target` includes `zip` alongside `dmg`.** Squirrel.Mac updates from a zip, so a
+  dmg-only macOS release builds fine and then silently never updates.
+
+Note that `--dir` builds produce **no** `latest*.yml` and no `app-update.yml`: electron-builder
+only writes update metadata for real installer targets. That is expected, and `updater.ts`
+detects it rather than erroring — see "Auto-update".
 
 `build.npmRebuild` is `false`, which is deliberate. The only native production dependency is
 `better-sqlite3`, and since v13 it is an **N-API** addon shipping prebuilt binaries inside its
@@ -196,9 +223,22 @@ too**, or they'll fail lint with "not found by the project service".
 launcher) that runs against the **packaged** app, not `localhost:4200` — deliberately, since
 things like a sandboxed preload script failing to resolve a dependency or a CSP blocking
 something only happen once `app.isPackaged` is true, which a dev-mode test wouldn't catch. Run
-it with `npm run test:e2e` from root (packages with `electron-builder --dir` first, since that's
-much faster than a full installer build). It's intentionally not wired into CI or `npm run
-test` — it's slow (a full build + packaging) and platform-specific.
+it with `npm run test:e2e` from root (packages with `--dir` first, since that's much faster
+than a full installer build). It is deliberately **not** part of `npm run test` — it needs a
+full build plus packaging, which is far too slow for the inner loop — but it **does** run in
+CI, on Windows, macOS and Linux, as the second half of the `package` job. That job is the
+only thing in this repo that exercises the packaging landmines in "Packaging" above, so
+treat a failure there as a real bug rather than CI flake. See "Release engineering" below.
+
+Coverage is off by default and enabled by `npm run test:coverage`, which each workspace
+implements with its own runner: `@vitest/coverage-v8` for `shared` and `electron-app`
+(configured in their `vitest.config.ts`), and the `coverageReporters` option on the
+`@angular/build:unit-test` target in `angular.json` for `angular-app`. All three emit
+`lcov.info` plus `coverage-summary.json`; note that Angular's builder nests its output one
+level deeper (`coverage/<project>/`) than vitest's, which `scripts/coverage-summary.mjs`
+handles by looking in both places. There are no coverage thresholds — a template that failed
+a consumer's build for uncovering its own example code would just get deleted. Add them via
+`coverage.thresholds` (vitest) / `coverageThresholds` (Angular) once you have real code.
 
 A root `.npmrc` sets `legacy-peer-deps=true` — without it, `npm install` reproducibly crashes
 (`Cannot read properties of null (reading 'edgesOut')`) while recursing into `vitest`'s own peer
@@ -210,6 +250,116 @@ an existing tree gets far enough not to hit it, so don't conclude it's fixed fro
 install`. Removable once npm ships a fix or `@angular/build` widens that peer to vitest 5; if
 `npm install` starts crashing that way again after removing it, that's why.
 
+## Release engineering
+
+Four workflows, all under `.github/workflows/`. Every one of them sets a `concurrency` group so
+a superseded run is cancelled rather than left burning a runner; `cancel-in-progress` is scoped
+to `pull_request` events so that each commit on `main` keeps a result of its own, and the
+release workflow never cancels at all (a half-uploaded set of installers is worse than a slow
+build).
+
+**`ci.yml`** — on pushes to `main` and on every PR. Three jobs:
+
+- `verify` (ubuntu): lint, `format:check`, build, and `test:coverage`, then `coverage:summary`
+  into the run summary and the raw `coverage/` directories as an artifact.
+- `package` (windows + macos + ubuntu, `fail-fast: false`, `needs: verify`): `npm run
+package:dir` followed by the Playwright suite against the packaged app. **This is the job that
+  earns its keep.** Everything in `verify` runs against source on one Linux box; every landmine
+  in "Packaging" above (the hoisted-monorepo production-dependency walk, the vendored `shared`
+  symlink, the `better-sqlite3` native binary, a sandboxed preload that can't resolve something,
+  a too-strict production CSP) is platform-specific and only reachable through a real package +
+  launch. It gates on `verify` so a lint typo doesn't burn three runners.
+  - `--publish never` (baked into `package:dir`) is **required**, not tidiness: electron-builder
+    switches publishing on _implicitly_ when it detects CI, and on a tag it defaults to `onTag`.
+    Without the flag a CI run could start writing to a GitHub release.
+  - Linux needs `xvfb-run` for the e2e step; macOS and Windows runners launch GUI apps directly.
+  - Both jobs cache the Electron/electron-builder download caches, keyed on `package-lock.json`.
+    Electron's binary zip is ~100 MB per platform per run otherwise.
+- `audit`: `npm audit --audit-level=high` off the lockfile (no install needed), and
+  `continue-on-error: true`. That is a deliberate trade-off, not an oversight — `electron` is a
+  devDependency here (electron-builder requires it to be), so `--omit=dev` would hide the
+  advisories that matter most, while auditing the full tree means a new advisory in the Angular
+  or lint toolchain would turn a consumer's CI red on a commit that changed nothing. Dependabot
+  security updates are the mechanism that actually fixes these; the step is here so you see
+  them. Delete the `continue-on-error` line to make it blocking.
+
+**`release.yml`** — on `v*` tags. A `draft` job creates the draft GitHub Release once, up front,
+then a three-platform `build` matrix builds real installers into it. The ordering is the point:
+if all three jobs raced to create the release themselves, the losers would 422.
+
+- It **validates the tag shape** (`v<major>.<minor>.<patch>[-pre]`) and then writes the version
+  into `workspaces/electron-app/package.json` with `npm version --allow-same-version
+--no-git-tag-version`. The tag is the single source of truth. Skip this and the installers and
+  `latest.yml` carry whatever was committed, electron-builder looks for the wrong release tag,
+  and electron-updater — which compares against exactly that version — never sees the release as
+  newer.
+- It publishes with **electron-builder's own publisher** (`--publish always` + `GH_TOKEN`), not
+  `gh release upload`. This is load-bearing: for the github provider electron-builder rewrites
+  the asset names in `latest.yml` to a space-free "safe" form
+  (`Electron-Angular-Boilerplate-Setup-1.0.0.exe`) and uploads under exactly those names, while
+  the files on disk keep their spaces. Uploading the on-disk names by hand leaves `latest.yml`
+  pointing at assets that don't exist and auto-update 404s on every check.
+- The release is left as a **draft**. Nothing reaches users, and electron-updater cannot read a
+  draft, so publishing it by hand is the deliberate act that ships an update. A final step fails
+  the build if no `latest*.yml` was produced — without that, broken auto-update would be
+  invisible until users failed to get an update they were never told about.
+- The only secret used is the automatic `GITHUB_TOKEN`; the job requests `contents: write`.
+
+**`codeql.yml`** — `javascript-typescript` with `build-mode: none`, so there is no install/build
+to keep in sync with the rest of CI. Covers all four workspaces, main process and renderer
+alike. Runs on push/PR plus weekly, because on a quiet repo most findings arrive from newly
+added queries rather than from a commit.
+
+**`dependabot.yml`** — see "Dependencies" below.
+
+### Cutting a release
+
+```
+npm version <major|minor|patch>   # or edit workspaces/electron-app/package.json
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+Then open the draft release Actions created, check the generated notes, and publish it. The tag
+is what drives everything; the committed version in `electron-app/package.json` only matters for
+local builds, since the workflow overwrites it from the tag.
+
+## Auto-update
+
+`electron-app/src/updater.ts` wires `electron-updater`'s `autoUpdater` to the GitHub Releases
+feed, and `main.ts` calls it from `whenReady` _after_ `createWindow()` so a slow or failing check
+never delays first paint. Updates download in the background and install on quit; when one is
+ready the user gets a "Restart now / Later" dialog. It re-checks every six hours, because a
+desktop app that stays open for days would otherwise only ever check at launch.
+
+It is written to be safe to call unconditionally and no-ops in the two cases where updating
+cannot work:
+
+- **Not packaged** — there is no installed app to replace.
+- **No `app-update.yml`** in `process.resourcesPath`. electron-builder only writes that file for
+  real installer targets, so every `--dir` build — including the ones CI and `npm run test:e2e`
+  produce — lacks it. Without this guard the packaged app would error on launch in exactly the
+  place the e2e suite runs. (`process.resourcesPath` is also undefined outside Electron, which is
+  why `hasUpdateFeed()` checks it before joining a path.)
+
+Every failure path is logged and swallowed rather than thrown — no network, an unpublished
+release and an unsigned macOS build all surface as a failed check, and none of them is a reason
+to take down the app the user actually launched.
+
+**Two things a consumer must supply before updates reach anyone:**
+
+1. **A published, non-draft release.** See `release.yml` above.
+2. **Code signing, which this template does not configure.** On macOS this is not optional:
+   Squirrel.Mac refuses to swap in an app whose signature doesn't match the running one, so
+   auto-update on an unsigned/un-notarized build always fails. Add certs via electron-builder's
+   `CSC_LINK`/`CSC_KEY_PASSWORD` (and `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID`
+   for notarization) as repo secrets, and drop the `CSC_IDENTITY_AUTO_DISCOVERY: false` line from
+   `release.yml` that currently keeps unsigned macOS builds deterministic. On Windows an unsigned
+   NSIS update installs fine but SmartScreen warns the user. Linux AppImage updates need neither.
+
+To remove auto-update instead: delete `updater.ts`, its spec and the `initializeAutoUpdater()`
+call in `main.ts`, and drop `electron-updater` from `electron-app`'s dependencies. Leave
+`build.publish` in place if you still want `latest*.yml` generated for a manual update flow.
+
 ## Dependencies
 
 Staying current is most of a boilerplate's value, so `.github/dependabot.yml` runs Dependabot
@@ -217,10 +367,14 @@ weekly over the npm workspaces (one `directory: /` entry covers every workspace 
 reads the root `package.json`'s `workspaces` field) and over the GitHub Actions in CI.
 Dependabot rather than Renovate specifically because this is a GitHub _template_: it needs no
 app install, so it works on a consumer's fork the moment they click "Use this template".
-Angular, the lint/format toolchain and the test toolchain are each grouped into a single PR —
-they only resolve against each other, so per-package PRs would just fail. `electron` and
-`better-sqlite3` majors are ignored: both move native/ABI ground that CI does not cover (CI
-builds no installers), so they're taken deliberately, by hand, with a real `npm run package`.
+Angular, the lint/format toolchain, the test toolchain and the electron-builder/electron-updater
+pair are each grouped into a single PR — they only resolve against each other, so per-package
+PRs would just fail. (electron-builder and electron-updater are one group because they ship
+from the same project and share an exactly-pinned `builder-util-runtime`.) `electron` and
+`better-sqlite3` majors are still ignored and taken by hand: CI now packages on all three
+platforms, which covers most of that ground, but it builds with `--dir` and does no signing,
+so a real `npm run package` and a look at a tagged release build are still worth doing for an
+ABI-moving major.
 
 Two version choices deviate from what a resolver would pick on its own, both on purpose:
 

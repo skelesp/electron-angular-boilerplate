@@ -1,0 +1,126 @@
+name: Release
+
+# Tag-triggered: push a `vX.Y.Z` tag and this builds an installer per platform and attaches it
+# to a *draft* GitHub Release. Nothing reaches users until a human opens that draft and hits
+# publish - which is also what gates auto-update, since electron-updater cannot read a draft.
+on:
+  push:
+    tags: ['v*']
+
+# Never cancel a release in flight: a half-uploaded set of installers is worse than a slow build.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  draft:
+    name: Create draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Created up front, once, rather than letting the three build jobs race to create it -
+      # electron-builder would otherwise have each of them try, and the losers can 422.
+      - name: Create the draft release if it doesn't exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists - reusing it."
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --draft \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
+
+  build:
+    name: Installer (${{ matrix.os }})
+    needs: draft
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-electron-
+
+      - run: npm ci
+
+      # electron-builder resolves the release to upload into by the tag `v${version}`, where the
+      # version comes from `directories.app`'s package.json - workspaces/electron-app, not the
+      # root. A tag that doesn't match that shape would have it look for a release that isn't
+      # there, so reject it here rather than half-way through a 40-minute matrix.
+      - name: Check the tag is v<semver>
+        shell: bash
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not of the form v<major>.<minor>.<patch>."
+            exit 1
+          fi
+
+      # The tag is the single source of truth for the version. Without this the installers and
+      # latest.yml would all carry whatever was committed in electron-app/package.json, and
+      # electron-updater - which compares against that version - would never see the release as
+      # newer. --allow-same-version keeps re-running a tag from failing on "version not changed".
+      - name: Set the app version from the tag
+        shell: bash
+        run: |
+          npm version "${GITHUB_REF_NAME#v}" \
+            --allow-same-version \
+            --no-git-tag-version \
+            --workspace=workspaces/electron-app
+
+      # `--publish always` uploads into the draft created above. Publishing via electron-builder
+      # rather than `gh release upload` is deliberate: for the github provider it rewrites the
+      # asset names in latest.yml to their space-free "safe" form and uploads under exactly those
+      # names. Uploading the on-disk filenames by hand would leave latest.yml pointing at assets
+      # that don't exist, and auto-update would 404 on every check.
+      - name: Build and upload installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No code signing is configured in this template - see the "Auto-update" section of
+          # CLAUDE.md for what to add. Turning discovery off keeps unsigned macOS builds from
+          # failing when the runner happens to have some other identity in its keychain.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run package -- --publish always
+
+      # If this is missing, the installers are fine but auto-update is silently dead. The release
+      # is still a draft at this point, so a red build here means nobody ever shipped it.
+      - name: Verify update metadata was produced
+        shell: bash
+        run: |
+          shopt -s nullglob
+          metadata=(release/latest*.yml)
+          if [ ${#metadata[@]} -eq 0 ]; then
+            echo "::error::No latest*.yml in release/ - electron-updater would have no feed to read."
+            exit 1
+          fi
+          printf 'Update metadata: %s\n' "${metadata[@]}"

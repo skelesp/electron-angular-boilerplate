@@ -5,9 +5,21 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push makes an in-flight run's result irrelevant. Cancel superseded runs on pull
+# requests, where a force-push per review round is normal; leave pushes to main alone, so every
+# commit on the default branch keeps a result of its own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 jobs:
-  build:
+  verify:
+    name: Lint, build and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -24,4 +36,110 @@ jobs:
 
       - run: npm run build
 
-      - run: npm run test
+      - run: npm run test:coverage
+
+      # Renders the per-workspace totals into the run summary, so a reviewer sees coverage on
+      # the PR without any account or repo secret. See scripts/coverage-summary.mjs for how to
+      # bolt on a hosted coverage service instead.
+      - name: Report coverage
+        if: always()
+        run: npm run coverage:summary
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: workspaces/*/coverage
+          if-no-files-found: warn
+
+  # The job that guards what actually breaks. Everything above this runs on one Linux box
+  # against source; packaging is where the electron-builder landmines documented in CLAUDE.md
+  # live (the hoisted-monorepo dependency walk, the `shared` symlink, the native better-sqlite3
+  # binary), and every one of them is platform-specific. The Playwright suite then runs the
+  # *packaged* app, which is the only way a broken sandboxed preload or a too-strict production
+  # CSP shows up at all.
+  package:
+    name: Package and e2e (${{ matrix.os }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Electron's binary zip is ~100 MB per platform and is otherwise re-downloaded on every
+      # run. Paths that don't exist on a given runner are simply skipped.
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-electron-
+
+      # --dir only, not a full installer: it exercises the same app packing, dependency walk and
+      # native-module handling in a fraction of the time. Installers are the release workflow's
+      # job. `--publish never` matters - electron-builder turns publishing on *implicitly* when
+      # it detects CI, so leaving it off would have every CI run try to touch a GitHub release.
+      - name: Package the app
+        env:
+          # No signing certificates in CI, and none are needed to package and launch:
+          # electron-builder still ad-hoc signs the macOS build, which is all the runner
+          # requires. Turning discovery off keeps it from picking up some unrelated
+          # identity that happens to be in the runner's keychain.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run package:dir
+
+      # Electron needs a display server on Linux; macOS and Windows runners launch GUI apps as-is.
+      - name: Run e2e (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm --workspace=workspaces/e2e run test
+
+      - name: Run e2e
+        if: runner.os != 'Linux'
+        run: npm --workspace=workspaces/e2e run test
+
+      - name: Upload e2e artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.os }}
+          path: |
+            workspaces/e2e/test-results
+            workspaces/e2e/playwright-report
+          if-no-files-found: ignore
+
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Advisory, not blocking, and that is a deliberate trade-off for a template. `electron` is a
+    # devDependency here (electron-builder requires that), so `--omit=dev` would hide exactly the
+    # advisories that matter most, and auditing the full tree means a fresh advisory anywhere in
+    # the Angular or lint toolchain would otherwise turn a consumer's CI red on a commit that
+    # changed nothing. Dependabot security updates are what actually fixes these; this step is
+    # here so you see them. Drop this line to make unfixed high-severity advisories block merges.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Reads package-lock.json directly - no install needed.
+      - run: npm audit --audit-level=high

@@ -13,12 +13,14 @@
     "watch": "tsc --build . --watch",
     "lint": "eslint .",
     "lint:fix": "npm run lint -- --fix",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.0",
     "vitest": "^5.0.0"
   },
   "dependencies": {

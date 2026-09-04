@@ -28,7 +28,10 @@
     "package": "electron-builder",
     "postpackage": "node workspaces/electron-app/scripts/vendor-shared.mjs --remove",
     "test": "npm run test --workspace=workspaces/shared --workspace=workspaces/electron-app --workspace=workspaces/angular-app",
-    "test:e2e": "npm run package -- --dir && npm --workspace=workspaces/e2e run test",
+    "test:coverage": "npm run test:coverage --workspace=workspaces/shared --workspace=workspaces/electron-app --workspace=workspaces/angular-app",
+    "coverage:summary": "node scripts/coverage-summary.mjs",
+    "package:dir": "npm run package -- --dir --publish never",
+    "test:e2e": "npm run package:dir && npm --workspace=workspaces/e2e run test",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "format": "prettier --write .",
@@ -63,6 +66,11 @@
       "package.json"
     ],
     "npmRebuild": false,
+    "publish": [
+      {
+        "provider": "github"
+      }
+    ],
     "asarUnpack": [
       "**/*.node",
       "node_modules/better-sqlite3/**"
@@ -71,7 +79,10 @@
       "target": "nsis"
     },
     "mac": {
-      "target": "dmg"
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "linux": {
       "target": "AppImage"

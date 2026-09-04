@@ -13,6 +13,9 @@ workspaces/electron-app/renderer
 # electron-builder packaging output
 /release
 
+# Test coverage output
+workspaces/*/coverage
+
 # Playwright e2e output
 workspaces/e2e/playwright-report
 workspaces/e2e/test-results

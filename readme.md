@@ -87,14 +87,77 @@ The Electron window loads `http://localhost:4200`.
 - `npm run lint` / `npm run lint:fix`
 - `npm run format` / `npm run format:check`
 - `npm run test` — Vitest suites for `shared`, `electron-app` and `angular-app`
-- `npm run package` — build an installer/unpacked app under `/release`
+- `npm run test:coverage` — the same suites with coverage reports under each `coverage/`
+- `npm run test:e2e` — packages the app and runs the Playwright suite against the **packaged**
+  build (slow; also runs in CI on all three platforms)
+- `npm run package` — build an installer under `/release`
+- `npm run package:dir` — the packaged app tree without an installer, much faster
 
-### Staying current
+## CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request:
+
+| Job       | Where                  | What                                                          |
+| --------- | ---------------------- | ------------------------------------------------------------- |
+| `verify`  | ubuntu                 | lint, format check, build, unit tests + coverage summary      |
+| `package` | windows, macOS, ubuntu | packages the app and runs the Playwright e2e suite against it |
+| `audit`   | ubuntu                 | `npm audit` (advisory — it reports, it doesn't block)         |
+
+The `package` job is the important one. Cross-platform Electron packaging is the part of a
+desktop app that actually breaks — native modules, module resolution inside the asar, a preload
+script that fails under `sandbox: true`, a CSP that only applies in a packaged build — and none
+of it is reachable by building from source on one machine. It runs on all three platforms so
+you find out on the PR rather than after a release.
+
+`.github/workflows/codeql.yml` adds GitHub's CodeQL analysis for JavaScript/TypeScript on
+push, PR and weekly.
+
+## Releasing
+
+`.github/workflows/release.yml` is triggered by a `v*` tag and builds a real installer on each
+platform — NSIS on Windows, dmg + zip on macOS, AppImage on Linux — attaching them all to a
+**draft** GitHub Release:
+
+```
+npm version <major|minor|patch>   # or edit workspaces/electron-app/package.json
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+Then open the draft release Actions created for you, review the auto-generated notes, and
+publish it when you're ready. Nothing reaches users until you do. The tag is the source of
+truth for the version — the workflow writes it into the app before building — and the only
+credential involved is the `GITHUB_TOKEN` Actions provides automatically, so this works on a
+fresh fork with no setup.
+
+No code signing is configured. See the "Auto-update" section of `CLAUDE.md` for what to add and
+which secrets electron-builder expects.
+
+## Auto-update
+
+The app checks GitHub Releases for a newer version on startup and every six hours after that,
+downloads it in the background and offers a "Restart now / Later" prompt when it's ready
+(`workspaces/electron-app/src/updater.ts`, using `electron-updater`). It resolves the repo it
+was built from automatically, so a fork updates from the fork's own releases.
+
+It quietly does nothing in development and in `--dir` builds, which have no update feed, and
+never takes the app down when a check fails. Two things you have to supply before updates
+actually reach users:
+
+1. **A published (non-draft) release** — electron-updater can't read drafts.
+2. **Code signing.** On macOS it's mandatory: an unsigned or un-notarized build can't be
+   swapped in by Squirrel.Mac, so auto-update will always fail. On Windows updates work
+   unsigned but SmartScreen warns users. Linux AppImage needs neither.
+
+`CLAUDE.md` documents how to wire signing in, and how to remove auto-update entirely if you'd
+rather not ship it.
+
+## Staying current
 
 Dependabot is configured in `.github/dependabot.yml` and runs weekly once you've created a
-repo from this template — no app to install. Angular, the lint toolchain and the test
-toolchain are grouped into one PR each; `electron` and `better-sqlite3` majors are left for
-you to take by hand, since they move native/ABI ground that CI doesn't cover.
+repo from this template — no app to install. Angular, the lint toolchain, the test toolchain
+and the electron-builder/electron-updater pair are grouped into one PR each; `electron` and
+`better-sqlite3` majors are left for you to take by hand, since they move native/ABI ground
+that CI only partly covers (it packages, but builds no signed installers).
 
 ## License
 

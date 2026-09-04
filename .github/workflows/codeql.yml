@@ -1,0 +1,44 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # A weekly run re-scans unchanged code against newly added queries - most CodeQL findings on a
+  # quiet repo arrive this way rather than from a commit.
+  schedule:
+    - cron: '31 4 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write # to upload the results to the Security tab
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # `build-mode: none` is the supported mode for JS/TS: CodeQL reads the sources directly,
+      # so there is no npm install or build to keep in sync with the rest of CI. It covers all
+      # four workspaces at once, main process and renderer alike.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'
