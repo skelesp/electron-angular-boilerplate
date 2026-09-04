@@ -17,7 +17,7 @@ describe('CreateNoteInputSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects unknown fields (schema is .strict())', () => {
+  it('rejects unknown fields (schema is a z.strictObject)', () => {
     const result = CreateNoteInputSchema.safeParse({
       title: 'Groceries',
       content: 'Milk, eggs',

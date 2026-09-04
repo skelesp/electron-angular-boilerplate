@@ -14,8 +14,12 @@ const dbPath = app.isPackaged
 
 mkdirSync(dirname(dbPath), { recursive: true });
 
+// better-sqlite3 ships an N-API prebuilt binary per platform inside its own package
+// (node_modules/better-sqlite3/prebuilds/<platform>-<arch>.node) and resolves it relative to
+// that package directory, so no nativeBinding path is needed here. Packaged builds only need
+// the package kept outside the asar archive - see `asarUnpack` in the root package.json.
 export const AppDataSource = new DataSource({
-  type: 'sqlite',
+  type: 'better-sqlite3',
   database: dbPath,
   synchronize: !app.isPackaged, // Dev convenience only - packaged builds run migrations instead.
   migrationsRun: app.isPackaged,

@@ -26,13 +26,13 @@
     "esbuild": "^0.25.0",
     "eslint-import-resolver-typescript": "^3.10.1",
     "ts-node": "^10.9.2",
-    "vitest": "^4.0.8"
+    "vitest": "^5.0.0"
   },
   "dependencies": {
-    "@electron-angular-boilerplate/shared": "^0.0.x",
+    "@electron-angular-boilerplate/shared": "*",
+    "better-sqlite3": "^13.0.3",
     "electron-log": "^5.4.3",
     "reflect-metadata": "^0.2.2",
-    "sqlite3": "^6.0.1",
-    "typeorm": "^0.3.31"
+    "typeorm": "^1.1.1"
   }
 }

@@ -13,7 +13,7 @@ const testDataSource = await vi.hoisted(async () => {
   const { DataSource } = await import('typeorm');
   const { NoteRecord } = await import('./Note.entity');
   const dataSource = new DataSource({
-    type: 'sqlite',
+    type: 'better-sqlite3',
     database: ':memory:',
     synchronize: true,
     entities: [NoteRecord],

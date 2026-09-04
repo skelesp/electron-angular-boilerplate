@@ -86,6 +86,15 @@ The Electron window loads `http://localhost:4200`.
 - `npm run build:shared` / `build:electron-app` / `build:angular-app`
 - `npm run lint` / `npm run lint:fix`
 - `npm run format` / `npm run format:check`
+- `npm run test` — Vitest suites for `shared`, `electron-app` and `angular-app`
+- `npm run package` — build an installer/unpacked app under `/release`
+
+### Staying current
+
+Dependabot is configured in `.github/dependabot.yml` and runs weekly once you've created a
+repo from this template — no app to install. Angular, the lint toolchain and the test
+toolchain are grouped into one PR each; `electron` and `better-sqlite3` majors are left for
+you to take by hand, since they move native/ABI ground that CI doesn't cover.
 
 ## License
 

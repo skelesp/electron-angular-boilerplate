@@ -14,22 +14,18 @@ export const NoteDtoSchema = z.object({
 });
 export type NoteDto = z.infer<typeof NoteDtoSchema>;
 
-export const CreateNoteInputSchema = z
-  .object({
-    title: z.string().min(1),
-    content: z.string(),
-  })
-  .strict();
+export const CreateNoteInputSchema = z.strictObject({
+  title: z.string().min(1),
+  content: z.string(),
+});
 export type CreateNoteInput = z.infer<typeof CreateNoteInputSchema>;
 
 export const CreateNoteOutputSchema = apiResponseSchema(NoteDtoSchema);
 export type CreateNoteOutput = z.infer<typeof CreateNoteOutputSchema>;
 
-export const GetNoteInputSchema = z
-  .object({
-    id: z.string(),
-  })
-  .strict();
+export const GetNoteInputSchema = z.strictObject({
+  id: z.string(),
+});
 export type GetNoteInput = z.infer<typeof GetNoteInputSchema>;
 
 export const GetNoteOutputSchema = apiResponseSchema(NoteDtoSchema);
@@ -44,11 +40,9 @@ export type ListNotesInput = z.infer<typeof ListNotesInputSchema>;
 export const ListNotesOutputSchema = apiResponseSchema(z.array(NoteDtoSchema));
 export type ListNotesOutput = z.infer<typeof ListNotesOutputSchema>;
 
-export const DeleteNoteInputSchema = z
-  .object({
-    id: z.string(),
-  })
-  .strict();
+export const DeleteNoteInputSchema = z.strictObject({
+  id: z.string(),
+});
 export type DeleteNoteInput = z.infer<typeof DeleteNoteInputSchema>;
 
 export const DeleteNoteOutputSchema = apiResponseSchema(z.object({ id: z.string() }));

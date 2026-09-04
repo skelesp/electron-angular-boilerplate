@@ -1,0 +1,51 @@
+# Dependabot keeps this template current, which is most of its value - an Electron +
+# Angular starter is stale within months. Dependabot (rather than Renovate) because it
+# needs no app install: anyone who clicks "Use this template" gets it working on their
+# fork immediately.
+#
+# `directory: /` covers the whole npm workspaces monorepo - Dependabot reads the root
+# package.json's `workspaces` field and raises PRs for every workspace's manifest.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    groups:
+      # Angular ships its packages in lockstep; separate PRs per package would each fail
+      # peer resolution against the others. Same reasoning for the lint/format toolchain
+      # and the test toolchain, which are only meaningful upgraded together.
+      angular:
+        patterns:
+          - '@angular/*'
+          - 'angular-eslint'
+          - 'zone.js'
+      linting:
+        patterns:
+          - 'eslint'
+          - 'eslint-*'
+          - '@eslint/*'
+          - 'typescript-eslint'
+          - 'prettier'
+          - 'globals'
+      testing:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
+          - 'jsdom'
+          - '@playwright/test'
+    ignore:
+      # Electron majors move the bundled Node/Chromium ABI, which forces a native rebuild
+      # of better-sqlite3 and can break the packaged app in ways CI does not build (CI
+      # lints/builds/tests only - it produces no installers). Take these deliberately.
+      - dependency-name: electron
+        update-types: [version-update:semver-major]
+      - dependency-name: better-sqlite3
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

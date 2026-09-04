@@ -8,7 +8,7 @@ import { NoteRecord } from '../models/notes/Note.entity';
 // `.initialize()` in a `beforeAll` and `.destroy()` in the matching `afterAll`.
 export function createTestDataSource(): DataSource {
   return new DataSource({
-    type: 'sqlite',
+    type: 'better-sqlite3',
     database: ':memory:',
     synchronize: true,
     entities: [NoteRecord],

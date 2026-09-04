@@ -37,14 +37,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "concurrently": "^9.0.1",
-    "electron-builder": "^25.1.8",
+    "concurrently": "^10.0.5",
+    "electron-builder": "^26.15.3",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^3.10.1",
     "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-prettier": "^5.5.6",
-    "globals": "^15.15.0",
+    "globals": "^17.12.0",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "typescript": "~6.0.3",
@@ -60,23 +60,12 @@
     "files": [
       "dist/**/*",
       "renderer/**/*",
-      "package.json",
-      {
-        "from": "../../node_modules/call-bind-apply-helpers",
-        "to": "node_modules/call-bind-apply-helpers"
-      },
-      {
-        "from": "../../node_modules/side-channel",
-        "to": "node_modules/side-channel"
-      },
-      {
-        "from": "../../node_modules/qs",
-        "to": "node_modules/qs"
-      }
+      "package.json"
     ],
+    "npmRebuild": false,
     "asarUnpack": [
       "**/*.node",
-      "node_modules/sqlite3/**"
+      "node_modules/better-sqlite3/**"
     ],
     "win": {
       "target": "nsis"

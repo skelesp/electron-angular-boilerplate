@@ -95,10 +95,23 @@ place that touches `window.electronAPI`. Individual Angular services should go t
 `npm run package` (root) runs `electron-builder` (config in the root `package.json`'s `build`
 field, `directories.app` pointed at `workspaces/electron-app`) to produce an installer/unpacked
 app under `/release`. `appId`/`productName` in that config are placeholders — template
-consumers should change them. No code-signing is configured. `sqlite3`'s native binding is
-rebuilt per-target by electron-builder (`npmRebuild`, on by default) and is ABI-specific per
-OS/arch, so installers must be built on (or cross-rebuilt for) each target platform — this
-repo's CI (`.github/workflows/ci.yml`) only lints/builds/tests, it does not produce installers.
+consumers should change them. No code-signing is configured. This repo's CI
+(`.github/workflows/ci.yml`) only lints/builds/tests, it does not produce installers.
+
+`build.npmRebuild` is `false`, which is deliberate. The only native production dependency is
+`better-sqlite3`, and since v13 it is an **N-API** addon shipping prebuilt binaries inside its
+own npm tarball (`node_modules/better-sqlite3/prebuilds/<platform>-<arch>.node`, one per
+platform rather than one per Node/Electron ABI). N-API is ABI-stable across Electron versions,
+so the prebuilt binary already works and a rebuild is pure cost. It is not merely unnecessary
+but actively harmful here: `@electron/rebuild` doesn't recognise that flat `prebuilds/` layout,
+so left enabled it forces a from-source `node-gyp` build and fails outright on any machine
+without a C++ toolchain (on Windows, "Could not find any Visual Studio installation to use").
+`asarUnpack` keeps the package outside the asar archive so the `.node` file is a real file on
+disk; `sqlite.config.ts` passes no `nativeBinding` path and lets better-sqlite3 resolve its own.
+The practical upshot is that installers for every platform can be built from one machine as far
+as the database driver is concerned. **If a future `better-sqlite3` major goes back to
+per-ABI prebuilds, or a second native dependency is added, this trade-off has to be revisited** —
+that's when `npmRebuild` needs turning back on (and with it a toolchain per target platform).
 
 Two npm-workspaces-specific gotchas that the `prepackage`/`postpackage` hooks (auto-run by npm
 around `npm run package`) exist to work around — don't remove them without re-verifying a real
@@ -120,23 +133,26 @@ around `npm run package`) exist to work around — don't remove them without re-
   never walk out to the symlink. It's added/removed only around packaging, specifically so a
   normal `npm start` dev session keeps resolving the _live_ symlinked `shared` package (needed
   for `npm run watch:shared` hot-updates) instead of a stale packaging-time snapshot.
-- `build.files` in the root `package.json` also has three explicit `{from, to}` entries copying
-  `call-bind-apply-helpers`, `side-channel`, and `qs` from the hoisted root `node_modules` into
-  the packaged `node_modules`. electron-builder's automatic production-dependency walk (used
-  because `directories.app`'s own `node_modules` is hoisted away, same root cause as above)
-  silently drops these three real, non-optional, non-workspace transitive dependencies of
-  `typeorm`'s `sha.js`-based hashing path — apparently a dedup bug where it conflates them with
-  a same-named but differently-located nested copy elsewhere in the tree — even though it
-  correctly includes everything else in that same require chain (`get-intrinsic`, `dunder-proto`,
-  `call-bound`, etc.). Without this, the packaged app throws `Cannot find module
-'call-bind-apply-helpers'` the moment anything touches the database. **If a future dependency
-  bump hits the same class of bug**, diagnose it without needing a display: run
-  `ELECTRON_RUN_AS_NODE=1 "release/win-unpacked/Electron Angular Boilerplate.exe" <script.js> <path-to-app.asar>/node_modules`
-  — this runs the packaged Electron binary as plain Node (no window, no signing, no `--dir`
-  rebuild needed), so a script that `require()`s the app's real dependencies by absolute path
-  reveals every missing module in the actual packaged tree in one pass instead of iterating
-  crash-by-crash. `npx asar list release/win-unpacked/resources/app.asar` is the complementary
-  tool for checking whether a specific package made it into the asar at all.
+
+**Diagnosing a packaged build without a display**: run
+`ELECTRON_RUN_AS_NODE=1 "release/win-unpacked/Electron Angular Boilerplate.exe" <script.js> <path-to-app.asar>/node_modules`
+(the asar path must be absolute) — this runs the packaged Electron binary as plain Node (no
+window, no signing, no `--dir` rebuild needed), so a script that `require()`s the app's real
+dependencies by absolute path reveals every missing module in the actual packaged tree in one
+pass instead of iterating crash-by-crash. It is also the fastest way to confirm the database
+actually opens under the packaged Electron. `npx asar list release/win-unpacked/resources/app.asar`
+is the complementary tool for checking whether a specific package made it into the asar at all.
+Set that variable **only as a one-off prefix on the command**, never exported into your shell:
+while it is set, every Electron binary launched from that shell runs as plain Node, so the GUI
+never starts and `npm run test:e2e` fails with a misleading `Error: Process failed to launch!`
+(Playwright's `--remote-debugging-port=0` reaching Node's option parser as `bad option`).
+This mattered historically: electron-builder's production-dependency walk (used because
+`directories.app`'s own `node_modules` is hoisted away, same root cause as above) used to
+silently drop `call-bind-apply-helpers`, `side-channel` and `qs` — real transitive dependencies
+of TypeORM 0.3's `sha.js` hashing path — and `build.files` carried three explicit `{from, to}`
+entries to copy them in by hand. TypeORM 1.x dropped `sha.js`, those packages left the
+production graph entirely, and the entries were removed. **If a future dependency bump hits the
+same class of bug**, the recipe above is how to find it.
 
 In dev, Electron always loads `http://localhost:4200`; in a packaged build (`app.isPackaged`)
 it loads the bundled `renderer/index.html` instead, and a CSP is applied via
@@ -181,13 +197,44 @@ things like a sandboxed preload script failing to resolve a dependency or a CSP 
 something only happen once `app.isPackaged` is true, which a dev-mode test wouldn't catch. Run
 it with `npm run test:e2e` from root (packages with `electron-builder --dir` first, since that's
 much faster than a full installer build). It's intentionally not wired into CI or `npm run
-test` — it's slow (native module rebuild + packaging) and platform-specific.
+test` — it's slow (a full build + packaging) and platform-specific.
 
 A root `.npmrc` sets `legacy-peer-deps=true` — without it, `npm install` reproducibly crashes
-(`Cannot read properties of null (reading 'edgesOut')`) while resolving `vitest`'s own peer
-dependency graph, an npm/Arborist bug rather than anything specific to this repo. Safe to
-remove once npm ships a fix; if `npm install` starts failing that way again after removing it,
-that's why.
+(`Cannot read properties of null (reading 'edgesOut')`) while recursing into `vitest`'s own peer
+dependency set, an npm/Arborist bug rather than anything specific to this repo. It is reached
+via `@angular/build`'s _optional_ `vitest: ^4.0.8` peer: this repo is on vitest 5, so Arborist
+resolves the unsatisfied peer, fetches vitest 4's manifest and dies walking it. Note it only
+reproduces on a **clean** install (no `node_modules`, no lockfile) — an incremental install over
+an existing tree gets far enough not to hit it, so don't conclude it's fixed from one `npm
+install`. Removable once npm ships a fix or `@angular/build` widens that peer to vitest 5; if
+`npm install` starts crashing that way again after removing it, that's why.
+
+## Dependencies
+
+Staying current is most of a boilerplate's value, so `.github/dependabot.yml` runs Dependabot
+weekly over the npm workspaces (one `directory: /` entry covers every workspace manifest — it
+reads the root `package.json`'s `workspaces` field) and over the GitHub Actions in CI.
+Dependabot rather than Renovate specifically because this is a GitHub _template_: it needs no
+app install, so it works on a consumer's fork the moment they click "Use this template".
+Angular, the lint/format toolchain and the test toolchain are each grouped into a single PR —
+they only resolve against each other, so per-package PRs would just fail. `electron` and
+`better-sqlite3` majors are ignored: both move native/ABI ground that CI does not cover (CI
+builds no installers), so they're taken deliberately, by hand, with a real `npm run package`.
+
+Two version choices deviate from what a resolver would pick on its own, both on purpose:
+
+- `better-sqlite3` is on **13.x** while TypeORM 1.1.1 declares a `^12.0.0` optional peer. v13 is
+  the release that moved to N-API with in-tarball prebuilds, which is the entire reason the
+  packaging story works without a toolchain (see "Packaging"); v12 is NAN-based with per-ABI
+  prebuilds published only up to Electron ABI 148, and Electron 44 is ABI 149 — so on v12 there
+  is no usable prebuilt binary at all. TypeORM's driver only touches better-sqlite3's stable
+  `Database` surface (`new Database(path, opts)`, `.pragma`, `.prepare`, `.exec`, `.close`), and
+  passes `nativeBinding: null` through, which v13 accepts. `legacy-peer-deps` covers the range
+  mismatch. Drop this note once TypeORM widens the peer.
+- `vitest` is on **5.x** while `@angular/build` declares an optional `^4.0.8` peer. The
+  `@angular/build:unit-test` builder runs fine on vitest 5 (all three workspaces' suites pass);
+  the peer range simply hasn't been widened upstream. This is what makes the `.npmrc` workaround
+  above still necessary — see "Testing".
 
 ## Notes
 
