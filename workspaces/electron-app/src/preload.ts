@@ -24,5 +24,3 @@ const electronAPI: ElectronAPI = {
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
-
-console.log('[Preload.ts] The preload script v1.0 has been loaded successfully.');

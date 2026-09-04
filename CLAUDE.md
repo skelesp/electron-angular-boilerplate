@@ -157,7 +157,8 @@ same class of bug**, the recipe above is how to find it.
 In dev, Electron always loads `http://localhost:4200`; in a packaged build (`app.isPackaged`)
 it loads the bundled `renderer/index.html` instead, and a CSP is applied via
 `session.defaultSession.webRequest.onHeadersReceived` (dev is intentionally left unrestricted
-so `ng serve`/live-reload keeps working).
+so `ng serve`/live-reload keeps working). Both live in `electron-app/src/security.ts`, which
+also owns the navigation guards — see "Main-process lifecycle" below.
 
 ## Testing
 
@@ -236,6 +237,36 @@ Two version choices deviate from what a resolver would pick on its own, both on 
   the peer range simply hasn't been widened upstream. This is what makes the `.npmrc` workaround
   above still necessary — see "Testing".
 
+## Main-process lifecycle
+
+`main.ts` is deliberately thin — window creation and the `app` event wiring — with the pieces
+that have their own rules split out. Several of these exist to keep the template from shipping
+a developer's local setup or a debugging affordance to end users; don't "simplify" them away:
+
+- **Navigation guards** (`security.ts`, `attachNavigationGuards`) are attached once, centrally,
+  from `app.on('web-contents-created')` — which fires for the main window's own webContents too,
+  so `createWindow` must not attach them again or every listener doubles. `setWindowOpenHandler`
+  denies all `window.open`/`target="_blank"` and hands http(s) URLs to the system browser;
+  `will-navigate`/`will-redirect` allow only the app's own content (the dev-server origin in dev,
+  anything under `renderer/` when packaged) and `will-attach-webview` is refused outright. These
+  are items 12–13 of Electron's security checklist and the counterpart to `sandbox: true`.
+- **Single-instance lock**: `app.requestSingleInstanceLock()` gates all of the `app` wiring. Two
+  instances would mean two TypeORM DataSources on one SQLite file, so a second launch just
+  focuses the running window and exits.
+- **Window geometry** is persisted to `window-state.json` in `app.getPath('userData')`
+  (`windowState.ts`) and restored onto the **primary** display, with the saved position dropped
+  if it no longer intersects a connected display. A template must not hardcode a display index.
+- **`show: false` + `ready-to-show`** avoids a white flash on cold start; the window is only
+  shown once the renderer has something to paint.
+- **`render-process-gone`** recreates the window, but tracks crashes in a rolling window — a
+  renderer that crashes on load would otherwise respawn forever. Past the threshold it shows an
+  error box and exits.
+- **`uncaughtException`** logs, shows an error box and calls `app.exit(1)`. A main process that
+  has thrown past its own handlers has unknown state and shouldn't keep serving IPC over the
+  database.
+- **The app menu** (`menu.ts`) is installed explicitly, because Electron's default menu ships
+  Reload/Force Reload/Toggle DevTools. Those items are added only when `!app.isPackaged`.
+
 ## Notes
 
 - `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true` in
@@ -248,3 +279,9 @@ Two version choices deviate from what a resolver would pick on its own, both on 
   packaged builds use `app.getPath('userData')`. See `electron-app/src/database/sqlite.config.ts`.
 - Logging goes through `electron-app/src/logger.ts` (`electron-log`, level gated by
   `app.isPackaged`) rather than raw `console.*` in the main process.
+- Fonts are bundled via `@fontsource/roboto` and `@fontsource/material-icons`, imported from
+  `angular-app/src/styles.css` — not fetched from `fonts.googleapis.com`. A desktop app
+  shouldn't need the network to render correctly, and keeping them local is what lets the
+  packaged CSP stay `'self'`-only. `@fontsource/material-icons` ships only the `@font-face`, so
+  `styles.css` also carries the `.material-icons` ligature rules Google's stylesheet supplied —
+  without them `<mat-icon>` renders its name as text.

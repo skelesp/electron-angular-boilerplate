@@ -1,5 +1,37 @@
 /* You can add global styles to this file, and also import other style files */
 
+/*
+ * Bundled fonts - the weights Angular Material's typography uses, plus the Material Icons
+ * ligature font for <mat-icon>. These ship inside the app instead of being fetched from
+ * Google's CDN at startup, so the app renders identically offline and the packaged
+ * Content-Security-Policy needs no external style-src/font-src origins.
+ */
+@import '@fontsource/roboto/300.css';
+@import '@fontsource/roboto/400.css';
+@import '@fontsource/roboto/500.css';
+@import '@fontsource/material-icons/index.css';
+
+/*
+ * @fontsource/material-icons only declares the @font-face; this is the rule set Google's
+ * stylesheet used to supply, which is what makes <mat-icon>home</mat-icon> render a glyph
+ * instead of the literal word.
+ */
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
 html,
 body {
   height: 100%;
