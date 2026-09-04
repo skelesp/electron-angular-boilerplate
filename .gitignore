@@ -2,11 +2,16 @@
 
 # Database
 /data
+workspaces/electron-app/data
 
 # Ignore node_modules and dist in all workspace apps (Angular, Electron, etc.)
 workspaces/*/node_modules
 workspaces/*/dist
 workspaces/angular-app/.angular
+workspaces/electron-app/renderer
+
+# electron-builder packaging output
+/release
 
 # Node
 /node_modules

@@ -1,6 +1,7 @@
 import { AppApiRegistry, Handlers, getEndpointSchemas, ApiResponse } from '@electron-angular-boilerplate/shared';
 import { ipcMain } from 'electron';
 import { noteHandlers } from './models/notes/note.handler';
+import { logger } from './logger';
 
 export const notImplemented = () => {
   throw new Error('Not implemented');
@@ -25,7 +26,7 @@ function wrapHandler(channel: string, handler: (input: unknown) => Promise<unkno
 
   return async (rawInput: unknown) => {
     if (!schemas) {
-      console.error(`No schema registered for channel ${channel}`);
+      logger.error(`No schema registered for channel ${channel}`);
       return toErrorResponse(500, `No schema registered for channel ${channel}`);
     }
 
@@ -37,7 +38,7 @@ function wrapHandler(channel: string, handler: (input: unknown) => Promise<unkno
     try {
       return await handler(parsed.data);
     } catch (error) {
-      console.error(`Error handling channel ${channel}:`, error);
+      logger.error(`Error handling channel ${channel}:`, error);
       return toErrorResponse(500, error instanceof Error ? error.message : 'Unknown error');
     }
   };
@@ -54,8 +55,8 @@ export const registerAllHandlers = () => {
       const dynamicHandler = handler as (input: unknown) => Promise<unknown>;
       ipcMain.handle(channel, (_, input) => wrapHandler(channel, dynamicHandler)(input));
     } else {
-      console.error(`Invalid handler for channel ${channel}`);
+      logger.error(`Invalid handler for channel ${channel}`);
     }
   });
-  console.table(handlersRegistry);
+  logger.debug(Object.keys(handlersRegistry));
 };

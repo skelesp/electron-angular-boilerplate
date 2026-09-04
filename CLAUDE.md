@@ -27,11 +27,14 @@ npm start                      # build:shared, then run watch:shared + Angular d
   - Single workspace: `npm --workspace=workspaces/angular-app run test`.
   - `ng test` has no built-in "single spec file" flag in this setup; narrow with Jasmine's `fdescribe`/`fit` in the spec instead.
 - `npm run clean` — cleans build output in every workspace.
+- `npm run package` — builds everything and runs `electron-builder` (via its `prepackage`/
+  `postpackage` hooks) to produce an installer/unpacked app under `/release`. See "Packaging" below.
 
 Per-workspace scripts (run with `npm --workspace=workspaces/<name> run <script>`):
 
 - `shared`: `dev` (`tsc --watch`), `compile`/`build`/`build:prod` (`tsc --build`), `watch`.
-- `electron-app`: `start` (`tsc && electron .`) — expects Angular already serving at `localhost:4200`.
+- `electron-app`: `start` (`tsc && electron .`) — expects Angular already serving at `localhost:4200`;
+  `migration:generate` / `migration:run` / `migration:revert` for TypeORM migrations.
 - `angular-app`: `start` (`ng serve`), `watch` (`ng build --watch`).
 
 VS Code: the `Electron+Angular debug` launch compound (`.vscode/launch.json`) runs the
@@ -58,8 +61,11 @@ API surface, changes touch files in this order:
    `<domain>.handler.ts` with one handler per endpoint. Handlers just implement logic and throw
    on error; they do not do their own input validation or response wrapping.
 5. **`electron-app/src/database/sqlite.config.ts`** — new entities must be added to the
-   `entities` array here (TypeORM `synchronize: true`, so the SQLite schema auto-syncs to
-   entities — no migrations).
+   `entities` array here. `synchronize` is only on in dev (auto-syncs schema to entities);
+   packaged builds run TypeORM migrations instead (`migrationsRun: true`) — after changing an
+   entity, generate a migration with `npm --workspace=workspaces/electron-app run migration:generate`
+   (uses the standalone CLI data source at `electron-app/src/database/data-source.cli.ts`) and
+   commit it alongside the entity change.
 6. **`electron-app/src/handlersRegistry.ts`** — spread the new domain's handlers object into
    `handlersRegistry`. `wrapHandler` (in this file) validates every raw IPC payload against the
    channel's zod input schema before the handler runs, and normalizes both success and thrown
@@ -80,12 +86,68 @@ single typed `electronAPI.invoke(channel, data)` via `contextBridge` (validated 
 place that touches `window.electronAPI`. Individual Angular services should go through
 `ElectronService`, not `window.electronAPI` directly.
 
+## Packaging
+
+`npm run package` (root) runs `electron-builder` (config in the root `package.json`'s `build`
+field, `directories.app` pointed at `workspaces/electron-app`) to produce an installer/unpacked
+app under `/release`. `appId`/`productName` in that config are placeholders — template
+consumers should change them. No code-signing is configured. `sqlite3`'s native binding is
+rebuilt per-target by electron-builder (`npmRebuild`, on by default) and is ABI-specific per
+OS/arch, so installers must be built on (or cross-rebuilt for) each target platform — this
+repo's CI (`.github/workflows/ci.yml`) only lints/builds/tests, it does not produce installers.
+
+Two npm-workspaces-specific gotchas that the `prepackage`/`postpackage` hooks (auto-run by npm
+around `npm run package`) exist to work around — don't remove them without re-verifying a real
+`npm run package` run:
+
+- `prepackage` builds everything, copies the Angular browser build into `electron-app/renderer/`
+  (`copy-renderer.mjs`), and creates an empty `electron-app/node_modules/` if missing
+  (`ensure-node-modules-stub.mjs`) — electron-builder treats a _missing_ `node_modules` in
+  `directories.app` as "dependencies were never installed" and responds by running
+  `npm install --production` scoped to that directory, which in this hoisted monorepo prunes
+  the repo's _root_ devDependencies (electron-builder included) instead of doing anything useful.
+  An empty stub directory is enough to make it skip straight to rebuilding native modules instead.
+- `prepackage` also vendors a real (non-symlink) copy of the compiled `shared` package into
+  `electron-app/node_modules/@electron-angular-boilerplate/shared` (`vendor-shared.mjs`);
+  `postpackage` removes it again. `@electron-angular-boilerplate/shared` is normally an npm
+  workspace symlink pointing at `workspaces/shared`, and electron-builder's asar packer resolves
+  symlinks to their real path and throws if that path isn't under `directories.app` — vendoring
+  a real local copy makes Node's (and electron-builder's) module resolution find it first and
+  never walk out to the symlink. It's added/removed only around packaging, specifically so a
+  normal `npm start` dev session keeps resolving the _live_ symlinked `shared` package (needed
+  for `npm run watch:shared` hot-updates) instead of a stale packaging-time snapshot.
+- `build.files` in the root `package.json` also has three explicit `{from, to}` entries copying
+  `call-bind-apply-helpers`, `side-channel`, and `qs` from the hoisted root `node_modules` into
+  the packaged `node_modules`. electron-builder's automatic production-dependency walk (used
+  because `directories.app`'s own `node_modules` is hoisted away, same root cause as above)
+  silently drops these three real, non-optional, non-workspace transitive dependencies of
+  `typeorm`'s `sha.js`-based hashing path — apparently a dedup bug where it conflates them with
+  a same-named but differently-located nested copy elsewhere in the tree — even though it
+  correctly includes everything else in that same require chain (`get-intrinsic`, `dunder-proto`,
+  `call-bound`, etc.). Without this, the packaged app throws `Cannot find module
+'call-bind-apply-helpers'` the moment anything touches the database. **If a future dependency
+  bump hits the same class of bug**, diagnose it without needing a display: run
+  `ELECTRON_RUN_AS_NODE=1 "release/win-unpacked/Electron Angular Boilerplate.exe" <script.js> <path-to-app.asar>/node_modules`
+  — this runs the packaged Electron binary as plain Node (no window, no signing, no `--dir`
+  rebuild needed), so a script that `require()`s the app's real dependencies by absolute path
+  reveals every missing module in the actual packaged tree in one pass instead of iterating
+  crash-by-crash. `npx asar list release/win-unpacked/resources/app.asar` is the complementary
+  tool for checking whether a specific package made it into the asar at all.
+
+In dev, Electron always loads `http://localhost:4200`; in a packaged build (`app.isPackaged`)
+it loads the bundled `renderer/index.html` instead, and a CSP is applied via
+`session.defaultSession.webRequest.onHeadersReceived` (dev is intentionally left unrestricted
+so `ng serve`/live-reload keeps working).
+
 ## Notes
 
-- `contextIsolation: true` / `nodeIntegration: false` in `electron-app/src/main.ts`, but
-  `sandbox: false` — the code comments explain this is intentionally insecure for the
-  boilerplate/dev setup; don't quietly "fix" it without flagging the tradeoff.
-- Electron's main process loads `http://localhost:4200` unconditionally (not a packaged
-  `file://` build) — this repo is set up for dev/debug, not production packaging.
-- The SQLite file lives at `data/boilerplate.sqlite`, referenced relative to the compiled
-  `electron-app/dist/main.js`.
+- `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true` in
+  `electron-app/src/main.ts` — the standard secure Electron `webPreferences` combination.
+  `preload.ts` only uses `contextBridge`/`ipcRenderer` plus pure-TS validation from `shared`,
+  which all work under a sandboxed preload; keep it that way (no `fs`/other Node built-ins in
+  preload or in anything `shared` exports) if you don't want to revisit this.
+- The SQLite file path is resolved relative to `__dirname` (not `process.cwd()`), so it works
+  regardless of the process's working directory: dev uses `electron-app/data/boilerplate.sqlite`,
+  packaged builds use `app.getPath('userData')`. See `electron-app/src/database/sqlite.config.ts`.
+- Logging goes through `electron-app/src/logger.ts` (`electron-log`, level gated by
+  `app.isPackaged`) rather than raw `console.*` in the main process.

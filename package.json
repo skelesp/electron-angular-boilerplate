@@ -19,10 +19,14 @@
     "start:angular-app": "npm --workspace=workspaces/angular-app run start",
     "start:electron-app": "npm --workspace=workspaces/electron-app run start",
     "watch:shared": "npm --workspace=workspaces/shared run watch",
-    "build": "npm run build:shared && npm run build:electron-app && npm run build:angular-app",
+    "build": "npm run build:shared && npm run build:electron-app && npm run build:angular-app && npm run copy:renderer",
     "build:shared": "npm --workspace=workspaces/shared run build",
     "build:electron-app": "npm --workspace=workspaces/electron-app run build",
     "build:angular-app": "npm --workspace=workspaces/angular-app run build",
+    "copy:renderer": "node workspaces/electron-app/scripts/copy-renderer.mjs",
+    "prepackage": "npm run build && node workspaces/electron-app/scripts/ensure-node-modules-stub.mjs && node workspaces/electron-app/scripts/vendor-shared.mjs",
+    "package": "electron-builder",
+    "postpackage": "node workspaces/electron-app/scripts/vendor-shared.mjs --remove",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
@@ -33,6 +37,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "concurrently": "^9.0.1",
+    "electron-builder": "^25.1.8",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^3.10.1",
@@ -43,5 +48,43 @@
     "rimraf": "^6.0.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.69.0"
+  },
+  "build": {
+    "appId": "com.electronangularboilerplate.app",
+    "productName": "Electron Angular Boilerplate",
+    "directories": {
+      "app": "workspaces/electron-app",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "renderer/**/*",
+      "package.json",
+      {
+        "from": "../../node_modules/call-bind-apply-helpers",
+        "to": "node_modules/call-bind-apply-helpers"
+      },
+      {
+        "from": "../../node_modules/side-channel",
+        "to": "node_modules/side-channel"
+      },
+      {
+        "from": "../../node_modules/qs",
+        "to": "node_modules/qs"
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "node_modules/sqlite3/**"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

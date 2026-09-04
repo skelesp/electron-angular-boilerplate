@@ -11,5 +11,12 @@
     "declaration": true
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../shared" }]
+  "references": [{ "path": "../shared" }],
+  "ts-node": {
+    // The TypeORM CLI (migration:generate/run/revert) runs through ts-node against this
+    // tsconfig. Type-checking is skipped here (ts-node 10's checker predates this repo's
+    // TypeScript version and misresolves @types/node through the workspace hoist) - `tsc
+    // --build` is still what type-checks the project for `npm run build`.
+    "transpileOnly": true
+  }
 }

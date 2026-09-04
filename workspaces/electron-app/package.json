@@ -7,21 +7,28 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "start": "tsc && electron .",
-    "compile": "tsc --build . --verbose",
+    "start": "tsc && npm run bundle:preload && electron .",
+    "compile": "tsc --build . --verbose && npm run bundle:preload",
+    "bundle:preload": "esbuild src/preload.ts --bundle --platform=node --format=cjs --sourcemap --external:electron --outfile=dist/preload.js",
     "build": "npm run clean && npm run compile",
-    "clean": "rimraf dist && rimraf tsconfig.tsbuildinfo"
+    "clean": "rimraf dist && rimraf tsconfig.tsbuildinfo",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.cli.ts src/database/migrations/Migration",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.cli.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.cli.ts"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^24.9.0",
-    "electron": "^44.1.1",
-    "eslint-import-resolver-typescript": "^3.10.1"
+    "electron": "44.1.1",
+    "esbuild": "^0.25.0",
+    "eslint-import-resolver-typescript": "^3.10.1",
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
     "@electron-angular-boilerplate/shared": "^0.0.x",
+    "electron-log": "^5.4.3",
     "reflect-metadata": "^0.2.2",
     "sqlite3": "^6.0.1",
     "typeorm": "^0.3.31"
