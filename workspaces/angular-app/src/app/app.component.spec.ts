@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { describe, beforeEach, it, expect } from 'vitest';
 import { AppComponent } from './app.component';
 
 describe('AppComponent', () => {

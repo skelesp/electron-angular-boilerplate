@@ -12,11 +12,15 @@
     "build:prod": "tsc --build .",
     "watch": "tsc --build . --watch",
     "lint": "eslint .",
-    "lint:fix": "npm run lint -- --fix"
+    "lint:fix": "npm run lint -- --fix",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
+  "devDependencies": {
+    "vitest": "^4.0.8"
+  },
   "dependencies": {
     "zod": "^3.23.8"
   }

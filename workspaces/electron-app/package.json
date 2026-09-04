@@ -14,7 +14,8 @@
     "clean": "rimraf dist && rimraf tsconfig.tsbuildinfo",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.cli.ts src/database/migrations/Migration",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.cli.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.cli.ts"
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.cli.ts",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -24,7 +25,8 @@
     "electron": "44.1.1",
     "esbuild": "^0.25.0",
     "eslint-import-resolver-typescript": "^3.10.1",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "vitest": "^4.0.8"
   },
   "dependencies": {
     "@electron-angular-boilerplate/shared": "^0.0.x",

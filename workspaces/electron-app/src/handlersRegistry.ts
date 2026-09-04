@@ -21,7 +21,7 @@ function toErrorResponse(code: number, details: string): ApiResponse<never> {
 // before the handler ever sees it, and any error the handler throws is
 // turned into an ApiResponse error instead of an unhandled rejection.
 // Individual handlers stay free of this boilerplate and can just throw.
-function wrapHandler(channel: string, handler: (input: unknown) => Promise<unknown>) {
+export function wrapHandler(channel: string, handler: (input: unknown) => Promise<unknown>) {
   const schemas = getEndpointSchemas(channel);
 
   return async (rawInput: unknown) => {

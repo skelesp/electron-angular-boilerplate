@@ -24,4 +24,4 @@ jobs:
 
       - run: npm run build
 
-      - run: npm run test --workspace=workspaces/angular-app -- --no-watch --no-progress --browsers=ChromeHeadless
+      - run: npm run test

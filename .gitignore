@@ -13,6 +13,10 @@ workspaces/electron-app/renderer
 # electron-builder packaging output
 /release
 
+# Playwright e2e output
+workspaces/e2e/playwright-report
+workspaces/e2e/test-results
+
 # Node
 /node_modules
 npm-debug.log

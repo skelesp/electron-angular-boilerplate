@@ -23,9 +23,13 @@ npm start                      # build:shared, then run watch:shared + Angular d
 - `npm run build:shared` / `build:electron-app` / `build:angular-app` — build one workspace.
 - `npm run lint` / `npm run lint:fix` — runs across all workspaces (`npm run lint --workspaces --if-present`).
 - `npm run format` / `npm run format:check` — Prettier over the whole repo.
-- `npm run test` — runs `test` in every workspace that has one. Currently only `angular-app` has tests (Karma/Jasmine).
-  - Single workspace: `npm --workspace=workspaces/angular-app run test`.
-  - `ng test` has no built-in "single spec file" flag in this setup; narrow with Jasmine's `fdescribe`/`fit` in the spec instead.
+- `npm run test` — runs `shared`, `electron-app`, and `angular-app`'s Vitest suites (explicitly
+  scoped, not `--workspaces`, so it doesn't also try to run `e2e`'s Playwright suite — see
+  "Testing" below). Single workspace: `npm --workspace=workspaces/<name> run test`.
+  - Vitest has no built-in "single spec file" CLI narrowing in this setup; use `.only`/`.skip`
+    on a `describe`/`it` in the spec instead, or pass a filename to `vitest run <pattern>`.
+- `npm run test:e2e` — packages the app (`electron-builder --dir`) and runs the Playwright suite
+  in `workspaces/e2e` against it. Not part of `npm run test` or CI — see "Testing" below.
 - `npm run clean` — cleans build output in every workspace.
 - `npm run package` — builds everything and runs `electron-builder` (via its `prepackage`/
   `postpackage` hooks) to produce an installer/unpacked app under `/release`. See "Packaging" below.
@@ -138,6 +142,52 @@ In dev, Electron always loads `http://localhost:4200`; in a packaged build (`app
 it loads the bundled `renderer/index.html` instead, and a CSP is applied via
 `session.defaultSession.webRequest.onHeadersReceived` (dev is intentionally left unrestricted
 so `ng serve`/live-reload keeps working).
+
+## Testing
+
+All three main workspaces use **Vitest** — `shared` and `electron-app` directly (each owns its
+own `vitest` devDependency and a minimal `vitest.config.ts`), `angular-app` via Angular's
+`@angular/build:unit-test` builder (`angular.json`'s `test` target), whose `runner` option
+defaults to `"vitest"` and runs in jsdom — no real browser, so CI doesn't need Chrome installed.
+That builder is marked `[EXPERIMENTAL]` by Angular itself. Spec files use the `.spec.ts` suffix
+and explicit `import { describe, it, expect, vi } from 'vitest'` (no globals mode) everywhere,
+including in `angular-app`.
+
+`electron-app`'s code can't just be imported into a test file as-is:
+`database/sqlite.config.ts` and `logger.ts` both read `app` from `electron` at **module load
+time** (not inside a function), which crashes outside a real Electron process — `electron`
+resolves to a stub with no real `app`/`ipcMain` under plain Node/Vitest. Any spec that imports
+`handlersRegistry.ts` or a domain's `*.handler.ts` — directly or transitively — needs
+`vi.mock('electron', ...)` and/or `vi.mock('../../database/sqlite.config', ...)` (swapping in a
+real in-memory `DataSource`, e.g. `src/test-utils/sqliteTestDataSource.ts`) before importing it.
+Because `vi.mock`/`vi.hoisted` are hoisted above this file's own top-level imports, building an
+async dependency (like an initialized `DataSource`) for a mock factory to use has to happen
+inside `vi.hoisted(async () => {...})`'s own dynamic `import()`s, not via regular imports — see
+`handlersRegistry.spec.ts` and `models/notes/note.handler.spec.ts` for the pattern. This is not
+something to refactor away; it's inherent to `sqlite.config.ts`'s module-level `app.isPackaged`
+check (see "Packaging" above) and just needs mocking around in tests.
+
+ESLint's `parserOptions.projectService` needs every linted file to belong to some tsconfig's
+`"include"`. Spec files, `src/test-utils/**`, and each workspace's `vitest.config.ts` are
+excluded from the main `tsconfig.json` (so `tsc --build` never emits them to `dist/`) — they're
+linted instead via `projectService.allowDefaultProject`, an explicit file list in each
+`eslint.config.mjs` (globstar patterns are disallowed there, to stop a typo from silently
+degrading a whole tree to the slower single-file lint mode) — **add new spec files to that list
+too**, or they'll fail lint with "not found by the project service".
+
+`workspaces/e2e` is a separate Playwright suite (`@playwright/test`, using its `_electron`
+launcher) that runs against the **packaged** app, not `localhost:4200` — deliberately, since
+things like a sandboxed preload script failing to resolve a dependency or a CSP blocking
+something only happen once `app.isPackaged` is true, which a dev-mode test wouldn't catch. Run
+it with `npm run test:e2e` from root (packages with `electron-builder --dir` first, since that's
+much faster than a full installer build). It's intentionally not wired into CI or `npm run
+test` — it's slow (native module rebuild + packaging) and platform-specific.
+
+A root `.npmrc` sets `legacy-peer-deps=true` — without it, `npm install` reproducibly crashes
+(`Cannot read properties of null (reading 'edgesOut')`) while resolving `vitest`'s own peer
+dependency graph, an npm/Arborist bug rather than anything specific to this repo. Safe to
+remove once npm ships a fix; if `npm install` starts failing that way again after removing it,
+that's why.
 
 ## Notes
 

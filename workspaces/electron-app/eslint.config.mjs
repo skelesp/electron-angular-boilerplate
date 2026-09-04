@@ -8,7 +8,21 @@ export default tseslint.config(...baseConfig, {
     sourceType: 'commonjs',
     globals: globals.node,
     parserOptions: {
-      projectService: true,
+      projectService: {
+        // Spec files, src/test-utils, and vitest.config.ts are excluded from tsconfig.json's
+        // own "include" (so tsc --build never emits them to dist/) - this tells the project
+        // service to still lint them via a one-off single-file program based on
+        // tsconfig.json, rather than erroring that they're not part of any project. Listed
+        // explicitly (globstar patterns are disallowed here as a guard against silently
+        // degrading a whole tree to the slower single-file mode) - add new spec files here too.
+        allowDefaultProject: [
+          'src/handlersRegistry.spec.ts',
+          'src/models/notes/Note.repository.spec.ts',
+          'src/models/notes/note.handler.spec.ts',
+          'src/test-utils/sqliteTestDataSource.ts',
+          'vitest.config.ts',
+        ],
+      },
       tsconfigRootDir: import.meta.dirname,
     },
   },
