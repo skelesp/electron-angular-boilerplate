@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { NoteRecord } from '../models/notes/Note.entity';
 import { isPackagedBuild } from '../env';
 import { getLogger } from '../logger';
+import { migrations } from './migrations';
 
 function resolveDatabasePath(): string {
   // Resolved from __dirname (not process.cwd()) so it works regardless of the process's
@@ -28,7 +29,7 @@ function createAppDataSource(): DataSource {
     database: dbPath,
     synchronize: !isPackagedBuild(), // Dev convenience only - packaged builds run migrations instead.
     migrationsRun: isPackagedBuild(),
-    migrations: [join(__dirname, 'migrations', '*.js')],
+    migrations, // Imported, not globbed - a glob matches nothing inside app.asar. See ./migrations/index.ts.
     logging: ['error', 'schema', 'warn'],
     entities: [NoteRecord], // Add your entities here
   });

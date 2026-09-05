@@ -94,8 +94,14 @@ To modify or add API surface, changes touch files in this order:
    `entities` array here. `synchronize` is only on in dev (auto-syncs schema to entities);
    packaged builds run TypeORM migrations instead (`migrationsRun: true`) — after changing an
    entity, generate a migration with `npm --workspace=workspaces/electron-app run migration:generate`
-   (uses the standalone CLI data source at `electron-app/src/database/data-source.cli.ts`) and
-   commit it alongside the entity change.
+   (uses the standalone CLI data source at `electron-app/src/database/data-source.cli.ts`),
+   **add the generated class to `electron-app/src/database/migrations/index.ts`**, and commit
+   both alongside the entity change. That list is what the packaged app runs: `dist/` lives
+   inside `app.asar` and TypeORM expands a `migrations` glob with a real filesystem walk, which
+   matches nothing in there — so a globbed migration silently doesn't run and the app starts on
+   an empty database where every query fails with "no such table". Only a machine with no
+   database yet hits it, which is why it passed locally and broke on every fresh CI runner. The
+   CLI data source still globs, deliberately: it runs from source, outside the archive.
 6. **`electron-app/src/handlersRegistry.ts`** — spread the new domain's handlers object into
    `handlersRegistry`. `wrapHandler` (in this file) validates every raw IPC payload against the
    channel's zod input schema before the handler runs, validates the response against the
