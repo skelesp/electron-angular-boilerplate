@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { NoteService } from './note.service';
 import { ElectronService } from './electron.service';
-import { apiRegistry, NoteDto } from '@electron-angular-boilerplate/shared';
+import { ApiErrorCode, apiRegistry, NoteDto } from '@electron-angular-boilerplate/shared';
 
 describe('NoteService', () => {
   let service: NoteService;
@@ -34,7 +34,7 @@ describe('NoteService', () => {
   });
 
   it('loadNotes sets error$ on an error-status response', async () => {
-    invoke.mockResolvedValue({ status: 'error', error: { code: 500, details: 'boom' } });
+    invoke.mockResolvedValue({ status: 'error', error: { code: ApiErrorCode.INTERNAL, details: 'boom' } });
 
     service = TestBed.inject(NoteService);
     await service.loadNotes();

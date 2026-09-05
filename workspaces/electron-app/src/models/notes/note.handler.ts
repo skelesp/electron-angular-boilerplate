@@ -1,4 +1,6 @@
 import {
+  ApiError,
+  ApiErrorCode,
   CreateNoteInput,
   CreateNoteOutput,
   GetNoteInput,
@@ -34,7 +36,9 @@ class NoteHandler {
   async getNote(input: GetNoteInput): Promise<GetNoteOutput> {
     const note = await this.notes.findOne({ where: { id: input.id } });
     if (!note) {
-      throw new Error('Note not found');
+      // A named code, not a thrown bare Error: "you asked for something that isn't there"
+      // is part of this endpoint's contract, and the renderer can branch on it.
+      throw new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found');
     }
     return { status: 'success', data: note };
   }
@@ -51,7 +55,7 @@ class NoteHandler {
   async deleteNote(input: DeleteNoteInput): Promise<DeleteNoteOutput> {
     const result = await this.notes.delete({ id: input.id });
     if (!result.affected) {
-      throw new Error('Note not found');
+      throw new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found');
     }
     return { status: 'success', data: { id: input.id } };
   }

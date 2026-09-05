@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ApiErrorCode, apiErrorCodeSchema } from './errors';
 
 interface BaseApiResponse {
   status: 'success' | 'error';
@@ -19,7 +20,7 @@ interface SuccessResponse<T> extends BaseApiResponse {
 interface ErrorResponse extends BaseApiResponse {
   status: 'error';
   error: {
-    code: number;
+    code: ApiErrorCode;
     details: string;
   };
 }
@@ -62,7 +63,7 @@ export const apiResponseSchema = <TDataSchema extends z.ZodType>(dataSchema: TDa
     z.object({
       status: z.literal('error'),
       error: z.object({
-        code: z.number(),
+        code: apiErrorCodeSchema,
         details: z.string(),
       }),
       timestamp: z.string().optional(),

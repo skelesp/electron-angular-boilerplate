@@ -38,6 +38,11 @@ never affects projects already created from it.
   `AppApiRegistry`, so a mismatched payload or channel is a compile error, not a
   runtime surprise.
 
+**Errors carry named codes**, not HTTP status numbers: `ApiErrorCode.NOT_FOUND`,
+`VALIDATION_FAILED`, `INTERNAL`, and so on. A handler picks one by throwing
+`new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found')`; anything else it throws
+becomes `INTERNAL`. The renderer can `switch` on the code.
+
 A minimal example domain (`note`: create/get/list/delete) is included end-to-end -
 shared schema, electron-app TypeORM entity/repository/handler, and an Angular
 service + `ApiTesterComponent` - to demonstrate the pattern. Replace it with your own

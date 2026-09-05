@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { noteEndpoints } from '@electron-angular-boilerplate/shared';
+import { ApiError, ApiErrorCode, noteEndpoints } from '@electron-angular-boilerplate/shared';
 import { useTestDataSource } from './test-utils/sqliteTestDataSource';
 import { wrapHandler } from './handlersRegistry';
 
@@ -19,24 +19,43 @@ describe('wrapHandler', () => {
     await teardown();
   });
 
-  it('returns a 400 envelope without calling the handler when input fails validation', async () => {
+  it('returns a VALIDATION_FAILED envelope without calling the handler when input fails validation', async () => {
     const handler = vi.fn();
     const wrapped = wrapHandler(channel, handler);
 
     const result = await wrapped({ title: '' /* missing content, empty title */ });
 
-    expect(result).toMatchObject({ status: 'error', error: { code: 400 } });
+    expect(result).toMatchObject({ status: 'error', error: { code: ApiErrorCode.VALIDATION_FAILED } });
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('returns a 500 envelope when the handler throws', async () => {
+  it('returns an INTERNAL envelope when the handler throws something unexpected', async () => {
     const wrapped = wrapHandler(channel, async () => {
       throw new Error('boom');
     });
 
     const result = await wrapped({ title: 'ok', content: 'ok' });
 
-    expect(result).toEqual({ status: 'error', error: { code: 500, details: 'boom' } });
+    expect(result).toEqual({ status: 'error', error: { code: ApiErrorCode.INTERNAL, details: 'boom' } });
+  });
+
+  it('carries the code an ApiError chose through to the renderer', async () => {
+    const wrapped = wrapHandler(channel, async () => {
+      throw new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found');
+    });
+
+    const result = await wrapped({ title: 'ok', content: 'ok' });
+
+    expect(result).toEqual({ status: 'error', error: { code: ApiErrorCode.NOT_FOUND, details: 'Note not found' } });
+  });
+
+  it('returns an UNKNOWN_CHANNEL envelope for a channel that is not in the registry', async () => {
+    const handler = vi.fn();
+
+    const result = await wrapHandler('not.a.channel', handler)({});
+
+    expect(result).toMatchObject({ status: 'error', error: { code: ApiErrorCode.UNKNOWN_CHANNEL } });
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it('passes validated input through and returns the handler result unchanged for valid input', async () => {

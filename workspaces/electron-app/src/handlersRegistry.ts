@@ -1,4 +1,11 @@
-import { AppApiRegistry, Handlers, getEndpointSchemas, ApiResponse } from '@electron-angular-boilerplate/shared';
+import {
+  ApiError,
+  ApiErrorCode,
+  ApiResponse,
+  AppApiRegistry,
+  getEndpointSchemas,
+  Handlers,
+} from '@electron-angular-boilerplate/shared';
 import { ipcMain } from 'electron';
 import { noteHandlers } from './models/notes/note.handler';
 import { getLogger } from './logger';
@@ -12,7 +19,7 @@ export const handlersRegistry: Handlers<AppApiRegistry> = {
   ...noteHandlers,
 };
 
-function toErrorResponse(code: number, details: string): ApiResponse<never> {
+function toErrorResponse(code: ApiErrorCode, details: string): ApiResponse<never> {
   return { status: 'error', error: { code, details } };
 }
 
@@ -27,19 +34,26 @@ export function wrapHandler(channel: string, handler: (input: unknown) => Promis
   return async (rawInput: unknown) => {
     if (!schemas) {
       getLogger().error(`No schema registered for channel ${channel}`);
-      return toErrorResponse(500, `No schema registered for channel ${channel}`);
+      return toErrorResponse(ApiErrorCode.UNKNOWN_CHANNEL, `No schema registered for channel ${channel}`);
     }
 
     const parsed = schemas.inputSchema.safeParse(rawInput);
     if (!parsed.success) {
-      return toErrorResponse(400, parsed.error.message);
+      return toErrorResponse(ApiErrorCode.VALIDATION_FAILED, parsed.error.message);
     }
 
     try {
       return await handler(parsed.data);
     } catch (error) {
+      // An ApiError is a documented outcome the handler chose (a missing record, a
+      // conflicting write), so it carries its own code and isn't logged as a failure.
+      // Anything else is a bug: report it as INTERNAL and log it.
+      if (error instanceof ApiError) {
+        getLogger().debug(`Channel ${channel} returned ${error.code}: ${error.message}`);
+        return toErrorResponse(error.code, error.message);
+      }
       getLogger().error(`Error handling channel ${channel}:`, error);
-      return toErrorResponse(500, error instanceof Error ? error.message : 'Unknown error');
+      return toErrorResponse(ApiErrorCode.INTERNAL, error instanceof Error ? error.message : 'Unknown error');
     }
   };
 }

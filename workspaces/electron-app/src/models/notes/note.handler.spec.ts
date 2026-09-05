@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { ApiError, ApiErrorCode } from '@electron-angular-boilerplate/shared';
 import { useTestDataSource } from '../../test-utils/sqliteTestDataSource';
 import { noteHandlers } from './note.handler';
 
@@ -40,12 +41,16 @@ describe('noteHandlers', () => {
     }
   });
 
-  it('getNote throws "Note not found" for an unknown id', async () => {
-    await expect(noteHandlers['note.get']({ id: 'does-not-exist' })).rejects.toThrow('Note not found');
+  it('getNote throws a NOT_FOUND ApiError for an unknown id', async () => {
+    await expect(noteHandlers['note.get']({ id: 'does-not-exist' })).rejects.toThrow(
+      new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found')
+    );
   });
 
-  it('deleteNote throws "Note not found" for an unknown id', async () => {
-    await expect(noteHandlers['note.delete']({ id: 'does-not-exist' })).rejects.toThrow('Note not found');
+  it('deleteNote throws a NOT_FOUND ApiError for an unknown id', async () => {
+    await expect(noteHandlers['note.delete']({ id: 'does-not-exist' })).rejects.toSatisfy(
+      (error: unknown) => error instanceof ApiError && error.code === ApiErrorCode.NOT_FOUND
+    );
   });
 
   it('deleteNote removes a previously created note', async () => {

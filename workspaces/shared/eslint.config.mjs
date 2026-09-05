@@ -16,6 +16,7 @@ export default tseslint.config(...baseConfig, {
         // patterns are disallowed here as a guard against silently degrading a whole tree to
         // the slower single-file mode) - add new spec files to this list too.
         allowDefaultProject: [
+          'src/apiDefinition/errors.spec.ts',
           'src/apiDefinition/validation.spec.ts',
           'src/apiDefinition/note/types.spec.ts',
           'vitest.config.ts',

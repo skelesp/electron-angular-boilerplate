@@ -86,6 +86,21 @@ API surface, changes touch files in this order:
    which is typed against `AppApiRegistry` end to end, so a wrong channel name or payload shape
    is a compile error in Angular, not a runtime failure.
 
+### Errors carry codes, not HTTP numbers
+
+`ApiErrorCode` (`shared/src/apiDefinition/errors.ts`) is a closed set of named codes —
+`VALIDATION_FAILED`, `UNKNOWN_CHANNEL`, `NOT_FOUND`, `CONFLICT`, `FORBIDDEN`,
+`CONTRACT_VIOLATION`, `INTERNAL`. IPC is not HTTP: there is no network, cache or proxy for a
+numeric status to mean anything to, and a renderer discriminating on `500` reads worse than one
+discriminating on `INTERNAL`. Both the zod schema and the TS union derive from that one object,
+so adding a code is a single edit.
+
+A handler chooses its code by throwing `ApiError` (`new ApiError(ApiErrorCode.NOT_FOUND, 'Note
+not found')`); `wrapHandler` passes that code through and logs it at debug, since a documented
+outcome isn't a failure. Anything else thrown is a bug: it becomes `INTERNAL` and is logged as
+an error. The thrown `message` crosses the IPC boundary as `error.details`, so keep it free of
+anything you wouldn't show a user.
+
 The `note` domain (create/get/list/delete) is a complete reference implementation of this
 pattern across all three workspaces (`shared/src/apiDefinition/note/`,
 `electron-app/src/models/notes/`, `angular-app/src/services/note.service.ts`, exercised by
