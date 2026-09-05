@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A template repo (npm workspaces monorepo) for a desktop app: Angular frontend (renderer),
 Electron main process, a SQLite database via TypeORM, and a **shared, runtime-validated API
-contract** between the two — zod schemas in `shared` are the single source of truth for both
-the TypeScript types and the IPC input validation. Because this is a GitHub template, treat
+contract** between the two — zod schemas in `shared` are the single source of truth for the
+TypeScript types, the IPC input validation, the response validation and the payloads of
+main → renderer events. Because this is a GitHub template, treat
 the boilerplate's own conventions (not any single feature) as the thing to keep consistent.
 
 ## Commands
@@ -59,8 +60,14 @@ compiled `dist`, not its source.
 
 ## Architecture: the shared API contract
 
-This is the core pattern of the boilerplate and spans all three workspaces. To modify or add
-API surface, changes touch files in this order:
+This is the core pattern of the boilerplate and spans all three workspaces. It has two
+halves: **request/response** (the renderer asks, the main process answers) and **events**
+(the main process pushes, nobody asked). Both are defined in `shared` and validated at the
+boundary; the sections below cover them in that order.
+
+### Request/response
+
+To modify or add API surface, changes touch files in this order:
 
 1. **`shared/src/apiDefinition/<domain>/types.ts`** — zod schemas for one domain's input/output
    (TS types are inferred from these, not written separately). Output DTO schemas are
@@ -136,16 +143,50 @@ outcome isn't a failure. Anything else thrown is a bug: it becomes `INTERNAL` an
 an error. The thrown `message` crosses the IPC boundary as `error.details`, so keep it free of
 anything you wouldn't show a user.
 
-The `note` domain (create/get/list/delete) is a complete reference implementation of this
-pattern across all three workspaces (`shared/src/apiDefinition/note/`,
+### Main → renderer events
+
+The push half. Progress ticks, file-watcher notifications, "the data you're showing just
+changed elsewhere" — none of which fit request/response, and all of which a real app needs.
+
+1. **`shared/src/apiDefinition/<domain>/events.ts`** — an `EventDefinition` per event: a channel
+   name and a single `payloadSchema` (no input/output pair — events are one-way and have no
+   response). `InferEvents` derives the channel → payload type map.
+2. **`shared/src/apiDefinition/registry.ts`** — add the domain to `eventRegistry` /
+   `AppApiEvents`, the event-side counterparts of `apiRegistry` / `AppApiRegistry`. Domains
+   without events simply don't appear there.
+3. **`electron-app/src/events.ts`** — `emitAppEvent(channel, payload)` broadcasts to every open
+   window, validating the payload against its schema in dev for the same reason responses are
+   validated. Broadcasting is the right default for "this application state changed"; a
+   per-window event (progress for a job one window started) should take its target explicitly
+   instead. `BrowserWindow` is accessed defensively (`BrowserWindow?.getAllWindows?.() ?? []`)
+   so a handler that emits stays unit-testable outside Electron.
+4. **`electron-app/src/preload.ts`** — `electronAPI.on(channel, listener)` checks the channel
+   against `isValidEventChannel` (the same allowlisting `invoke` gets, so a compromised renderer
+   can't subscribe to arbitrary IPC), strips the `IpcRendererEvent` — it carries a `sender`
+   handle to the main process, which must not cross the bridge — and returns an unsubscribe
+   function.
+5. **`angular-app/src/services/electron.service.ts`** — `on()` mirrors `invoke()`. Consumers
+   register the returned unsubscribe with `DestroyRef.onDestroy`.
+
+`NoteService` is the reference consumer: it subscribes to `note.changed` and reloads on it, and
+its `create`/`remove` deliberately **do not** reload afterwards. That covers changes the service
+didn't cause (another window, a background job) which a reload-after-my-own-write never can — and
+it means the e2e suite exercises the event path by construction, since the list can only update
+if the event was actually emitted, bridged and delivered.
+
+The `note` domain (create/get/list/delete plus a `note.changed` event) is a complete reference
+implementation of this pattern across all three workspaces (`shared/src/apiDefinition/note/`,
 `electron-app/src/models/notes/`, `angular-app/src/services/note.service.ts`, exercised by
 `ApiTesterComponent`). Follow its shape for new domains rather than reinventing it.
 
-Renderer-side IPC access is intentionally narrow: `electron-app/src/preload.ts` exposes a
-single typed `electronAPI.invoke(channel, data)` via `contextBridge` (validated against
-`isValidChannel` from `shared`), and `angular-app/src/services/electron.service.ts` is the only
-place that touches `window.electronAPI`. Individual Angular services should go through
-`ElectronService`, not `window.electronAPI` directly.
+Renderer-side IPC access is intentionally narrow: `electron-app/src/preload.ts` exposes exactly
+two typed functions — `electronAPI.invoke(channel, data)` and `electronAPI.on(channel, listener)`
+— via `contextBridge`, both channel-allowlisted against `shared`, and
+`angular-app/src/services/electron.service.ts` is the only place that touches
+`window.electronAPI`. Individual Angular services should go through `ElectronService`, not
+`window.electronAPI` directly. `ElectronService` reports a missing bridge (a component spec under
+jsdom, or `ng serve` opened in a plain browser) as a rejected promise / a warned no-op
+subscription rather than a `TypeError` from three frames deep.
 
 ## Packaging
 
@@ -500,8 +541,9 @@ a developer's local setup or a debugging affordance to end users; don't "simplif
   packaged builds use `app.getPath('userData')`. Reached through `getDataSource()`, which
   resolves that path on first call rather than at import. See
   `electron-app/src/database/sqlite.config.ts`.
-- Logging goes through `electron-app/src/logger.ts` (`electron-log`, level gated by
-  `app.isPackaged`) rather than raw `console.*` in the main process.
+- Logging goes through `getLogger()` from `electron-app/src/logger.ts` (`electron-log`, level
+  gated by `app.isPackaged`) rather than raw `console.*` in the main process. It's a function,
+  not an exported instance, so nothing configures transports at import time — see "Testing".
 - Fonts are bundled via `@fontsource/roboto` and `@fontsource/material-icons`, imported from
   `angular-app/src/styles.css` — not fetched from `fonts.googleapis.com`. A desktop app
   shouldn't need the network to render correctly, and keeping them local is what lets the

@@ -18,6 +18,7 @@ export default tseslint.config(...baseConfig, {
         allowDefaultProject: [
           'src/apiDefinition/errors.spec.ts',
           'src/apiDefinition/validation.spec.ts',
+          'src/apiDefinition/note/events.spec.ts',
           'src/apiDefinition/note/types.spec.ts',
           'vitest.config.ts',
         ],

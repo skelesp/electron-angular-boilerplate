@@ -11,8 +11,10 @@ import {
   NoteApiEndpoints,
   Handlers,
   noteEndpoints,
+  noteEvents,
 } from '@electron-angular-boilerplate/shared';
 import { getDataSource } from '../../database/sqlite.config';
+import { emitAppEvent } from '../../events';
 import { NoteRepository } from './Note.repository';
 import { toNoteDto } from './Note.mapper';
 
@@ -31,6 +33,7 @@ class NoteHandler {
   async createNote(input: CreateNoteInput): Promise<CreateNoteOutput> {
     const repository = this.notes;
     const note = await repository.save(repository.create(input));
+    emitAppEvent(noteEvents.changed.channel, { reason: 'created', id: note.id });
     return { status: 'success', data: toNoteDto(note) };
   }
 
@@ -58,6 +61,7 @@ class NoteHandler {
     if (!result.affected) {
       throw new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found');
     }
+    emitAppEvent(noteEvents.changed.channel, { reason: 'deleted', id: input.id });
     return { status: 'success', data: { id: input.id } };
   }
 }

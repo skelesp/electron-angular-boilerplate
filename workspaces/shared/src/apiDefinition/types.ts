@@ -105,3 +105,30 @@ export type InferEndpoints<T extends Record<string, EndpointDefinition>> = {
     z.infer<T[K]['outputSchema']> extends ApiResponse<unknown> ? z.infer<T[K]['outputSchema']> : never
   >;
 };
+
+/**
+ * The other half of Electron IPC: messages the main process pushes to the renderer
+ * (`webContents.send`) rather than answers to something the renderer asked for. Progress
+ * ticks, file-watcher notifications, "the data you're showing just changed elsewhere".
+ *
+ * They are one-way and have no response, so an event definition carries a single payload
+ * schema instead of an input/output pair. Everything else works the same way: the channel
+ * name and the payload type both come from this object, and the payload is validated
+ * against the schema before it is sent.
+ */
+export interface EventDefinition<TChannel extends string = string, TPayloadSchema extends z.ZodType = z.ZodType> {
+  channel: TChannel;
+  payloadSchema: TPayloadSchema;
+}
+
+export type ApiEventRegistry = {
+  [K: string]: unknown;
+};
+
+/** Builds a channel -> payload type map from a const object of EventDefinitions. */
+export type InferEvents<T extends Record<string, EventDefinition>> = {
+  [K in keyof T as T[K]['channel']]: z.infer<T[K]['payloadSchema']>;
+};
+
+/** Unsubscribes a listener registered with `ElectronAPI.on`. */
+export type Unsubscribe = () => void;

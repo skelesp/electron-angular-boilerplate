@@ -6,7 +6,11 @@ import { resolvePackagedExecutable } from './resolvePackagedExecutable';
 // dev server never enforces, only show up once app.isPackaged is true - a dev-mode test
 // wouldn't catch them. Requires `npm run package -- --dir` to have already run (see root
 // package.json's "test:e2e" script, which does both in order).
-test('creating a note round-trips through IPC to SQLite and back', async () => {
+//
+// It also covers the main -> renderer event path by construction: NoteService never reloads
+// after its own mutations, so the list can only change because the main process emitted
+// `note.changed` and the preload bridge delivered it.
+test('creating and deleting a note round-trips through IPC to SQLite and back', async () => {
   const app = await electron.launch({ executablePath: resolvePackagedExecutable() });
 
   try {
@@ -21,7 +25,11 @@ test('creating a note round-trips through IPC to SQLite and back', async () => {
     await window.getByPlaceholder('Content').fill('Created by Playwright');
     await window.getByRole('button', { name: 'Add note' }).click();
 
-    await expect(window.getByText(title)).toBeVisible();
+    const note = window.locator('.note', { hasText: title });
+    await expect(note).toBeVisible();
+
+    await note.getByRole('button', { name: 'Delete' }).click();
+    await expect(note).toHaveCount(0);
   } finally {
     await app.close();
   }

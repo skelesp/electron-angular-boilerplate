@@ -1,12 +1,13 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { ElectronService } from './electron.service';
-import { apiRegistry, NoteDto } from '@electron-angular-boilerplate/shared';
+import { apiRegistry, eventRegistry, NoteDto } from '@electron-angular-boilerplate/shared';
 
 @Injectable({
   providedIn: 'root',
 })
 export class NoteService {
   private electronService = inject(ElectronService);
+  private destroyRef = inject(DestroyRef);
 
   // Private signals for internal state management
   #notes = signal<NoteDto[]>([]);
@@ -19,6 +20,15 @@ export class NoteService {
   readonly error$ = this.#error.asReadonly();
 
   constructor() {
+    // The cached list is kept fresh by the main process telling us it changed, rather
+    // than by each mutation method remembering to reload afterwards. That covers changes
+    // this service didn't cause - another window, a background job, a migration - which
+    // a reload-after-my-own-write never can.
+    const unsubscribe = this.electronService.on(eventRegistry.note.changed.channel, () => {
+      void this.loadNotes();
+    });
+    this.destroyRef.onDestroy(unsubscribe);
+
     this.loadNotes(); // Initial load
   }
 
@@ -49,7 +59,8 @@ export class NoteService {
       });
 
       if (response.status === 'success') {
-        await this.loadNotes(); // Refresh the notes list
+        // No reload here: the handler emits `note.changed`, and the subscription above
+        // refreshes the list.
         return response.data;
       } else {
         this.#error.set(response.error.details);
@@ -67,9 +78,10 @@ export class NoteService {
       const response = await this.electronService.invoke(apiRegistry.note.delete.channel, { id });
 
       if (response.status === 'success') {
-        await this.loadNotes(); // Refresh the notes list
         return response.data;
       } else {
+        // A deleted-in-another-window note comes back as NOT_FOUND rather than a generic
+        // failure, so the renderer can tell "already gone" from "something broke".
         this.#error.set(response.error.details);
         return response.status;
       }

@@ -2,8 +2,8 @@
 
 A starting point for a desktop app: Angular frontend, Electron main process, a SQLite
 database via TypeORM, and a **shared, runtime-validated API contract** between the two
-(zod schemas double as the source of truth for both the TypeScript types and the IPC
-input validation).
+(zod schemas double as the source of truth for the TypeScript types, the IPC input and
+output validation, and the payloads of main-process events).
 
 This is a **template repository**. Click "Use this template" on GitHub to start a new,
 fully independent project from it - the new repo has no shared history or dependency
@@ -24,6 +24,12 @@ never affects projects already created from it.
 
 ### How the API contract works
 
+The contract has two halves: **request/response** (the renderer asks, the main process
+answers) and **events** (the main process pushes). Both are defined once in `shared` and
+validated at the process boundary.
+
+**Request/response**
+
 - `shared/src/apiDefinition/<domain>/types.ts` defines zod schemas (and the types
   inferred from them) for one domain's input/output.
 - `shared/src/apiDefinition/<domain>/endpoints.ts` maps each action to an IPC channel
@@ -39,6 +45,16 @@ never affects projects already created from it.
   `AppApiRegistry`, so a mismatched payload or channel is a compile error, not a
   runtime surprise.
 
+**Events (main process -> renderer)**
+
+- `shared/src/apiDefinition/<domain>/events.ts` defines a channel name and a payload
+  schema per event; `registry.ts` collects them into `eventRegistry` / `AppApiEvents`.
+- `electron-app`'s `emitAppEvent(channel, payload)` broadcasts to every open window,
+  validating the payload against its schema in development builds.
+- `angular-app`'s `ElectronService.on(channel, listener)` subscribes and returns an
+  unsubscribe function. The preload bridge allowlists event channels the same way it
+  allowlists `invoke` channels.
+
 **Handlers return DTOs, not entities.** Each domain has a `<Domain>.mapper.ts`
 (`toNoteDto`) that maps its TypeORM entity to the DTO the contract declares. Returning
 the entity would type-check for as long as the two shapes agree - and then quietly ship
@@ -51,10 +67,10 @@ the mapper fails loudly instead.
 `new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found')`; anything else it throws
 becomes `INTERNAL`. The renderer can `switch` on the code.
 
-A minimal example domain (`note`: create/get/list/delete) is included end-to-end -
-shared schema, electron-app TypeORM entity/repository/mapper/handler, and an Angular
-service + `ApiTesterComponent` - to demonstrate the pattern. Replace it with your own
-domain(s).
+A minimal example domain (`note`: create/get/list/delete, plus a `note.changed` event) is
+included end-to-end - shared schema, electron-app TypeORM entity/repository/mapper/handler,
+and an Angular service + `ApiTesterComponent` - to demonstrate the pattern. Replace it with
+your own domain(s).
 
 ## Adding a new API domain
 
@@ -64,22 +80,25 @@ domain(s).
 2. Define the input/output zod schemas in `types.ts` (output DTOs as `z.strictObject`).
 3. Define the channel names and endpoint registry in `endpoints.ts`.
 4. Add the domain to `apiRegistry` and `AppApiRegistry` in `registry.ts`.
+5. If the domain pushes events, add `events.ts` and register it in `eventRegistry` /
+   `AppApiEvents` too.
 
 **Electron app**
 
-5. Create the TypeORM entity/repository under `electron-app/src/models/<domain>/`.
-6. Add the entity to `entities` in `database/sqlite.config.ts`.
-7. Add a `<Domain>.mapper.ts` converting the entity to the contract's DTO.
-8. Create a `<domain>.handler.ts` implementing one handler per endpoint. Resolve
+6. Create the TypeORM entity/repository under `electron-app/src/models/<domain>/`.
+7. Add the entity to `entities` in `database/sqlite.config.ts`.
+8. Add a `<Domain>.mapper.ts` converting the entity to the contract's DTO.
+9. Create a `<domain>.handler.ts` implementing one handler per endpoint. Resolve
    repositories through `getDataSource()` inside the handler, never at module load - that
    is what keeps the domain unit-testable without mocking Electron. Throw `ApiError` for
-   outcomes the contract documents.
-9. Spread the handler's exported object into `handlersRegistry` in `handlersRegistry.ts`.
+   outcomes the contract documents; emit events with `emitAppEvent`.
+10. Spread the handler's exported object into `handlersRegistry` in `handlersRegistry.ts`.
 
 **Angular app**
 
-10. Add a `<domain>.service.ts` under `services/` that calls `ElectronService.invoke(...)`.
-11. Use it from a component.
+11. Add a `<domain>.service.ts` under `services/` that calls `ElectronService.invoke(...)`,
+    and subscribes with `ElectronService.on(...)` if the domain has events.
+12. Use it from a component.
 
 ## Development
 

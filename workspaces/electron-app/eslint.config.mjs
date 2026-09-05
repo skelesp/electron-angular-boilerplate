@@ -16,6 +16,7 @@ export default tseslint.config(...baseConfig, {
         // explicitly (globstar patterns are disallowed here as a guard against silently
         // degrading a whole tree to the slower single-file mode) - add new spec files here too.
         allowDefaultProject: [
+          'src/events.spec.ts',
           'src/handlersRegistry.spec.ts',
           'src/models/notes/Note.repository.spec.ts',
           'src/models/notes/note.handler.spec.ts',
