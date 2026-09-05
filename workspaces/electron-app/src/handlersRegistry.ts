@@ -12,10 +12,6 @@ import { isDevBuild } from './env';
 import { noteHandlers } from './models/notes/note.handler';
 import { getLogger } from './logger';
 
-export const notImplemented = () => {
-  throw new Error('Not implemented');
-};
-
 // Add one spread entry per domain's handlers object here.
 export const handlersRegistry: Handlers<AppApiRegistry> = {
   ...noteHandlers,
