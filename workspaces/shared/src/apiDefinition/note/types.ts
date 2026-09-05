@@ -4,8 +4,14 @@ import { apiResponseSchema } from '../types';
 // Example domain entity, mirrored by electron-app's NoteRecord TypeORM
 // entity. Named NoteDto (rather than Note) to avoid colliding with that
 // entity's name - the two are not the same type and are not kept in sync
-// automatically.
-export const NoteDtoSchema = z.object({
+// automatically. electron-app's Note.mapper.ts is what converts one to the
+// other; a handler must never return the entity directly.
+//
+// Output DTOs are deliberately `strictObject`s. A plain `z.object` would accept (and
+// silently strip) unknown keys, which is precisely the failure mode this schema exists
+// to catch: a new `@Column()` on the entity leaking to the renderer. Strict means the
+// development-time output validation in `wrapHandler` rejects it instead.
+export const NoteDtoSchema = z.strictObject({
   id: z.string(),
   title: z.string(),
   content: z.string(),
@@ -45,5 +51,5 @@ export const DeleteNoteInputSchema = z.strictObject({
 });
 export type DeleteNoteInput = z.infer<typeof DeleteNoteInputSchema>;
 
-export const DeleteNoteOutputSchema = apiResponseSchema(z.object({ id: z.string() }));
+export const DeleteNoteOutputSchema = apiResponseSchema(z.strictObject({ id: z.string() }));
 export type DeleteNoteOutput = z.infer<typeof DeleteNoteOutputSchema>;

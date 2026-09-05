@@ -63,7 +63,8 @@ This is the core pattern of the boilerplate and spans all three workspaces. To m
 API surface, changes touch files in this order:
 
 1. **`shared/src/apiDefinition/<domain>/types.ts`** — zod schemas for one domain's input/output
-   (TS types are inferred from these, not written separately).
+   (TS types are inferred from these, not written separately). Output DTO schemas are
+   `z.strictObject`s on purpose — see "Outputs are validated too" below.
 2. **`shared/src/apiDefinition/<domain>/endpoints.ts`** — maps each action to an IPC channel
    name plus its input/output schemas.
 3. **`shared/src/apiDefinition/registry.ts`** — combines every domain into `apiRegistry`
@@ -79,12 +80,30 @@ API surface, changes touch files in this order:
    commit it alongside the entity change.
 6. **`electron-app/src/handlersRegistry.ts`** — spread the new domain's handlers object into
    `handlersRegistry`. `wrapHandler` (in this file) validates every raw IPC payload against the
-   channel's zod input schema before the handler runs, and normalizes both success and thrown
+   channel's zod input schema before the handler runs, validates the response against the
+   channel's output schema on the way back out (in dev), and normalizes both success and thrown
    errors into an `ApiResponse<T>` envelope (`{status: 'success', data} | {status: 'error', error}`).
    This is the one place that behavior lives — don't duplicate it in individual handlers.
 7. **`angular-app/src/services/<domain>.service.ts`** — calls `ElectronService.invoke(channel, data)`,
    which is typed against `AppApiRegistry` end to end, so a wrong channel name or payload shape
    is a compile error in Angular, not a runtime failure.
+
+### Outputs are validated too
+
+`EndpointDefinition.outputSchema` is not decoration. `wrapHandler` parses every response
+against it — but **only when `!app.isPackaged`**. Responses are already type-checked at
+compile time, so this catches what types can't (an entity returned where a DTO was declared,
+a `Date` that became a string, a handler that drifted from its schema); those are bugs to fix
+before shipping, not conditions worth re-checking on every IPC call a user makes. A response
+that fails is logged and replaced with an `ApiErrorCode.CONTRACT_VIOLATION` envelope. The
+valid response is returned **by identity, not as `parsed.data`** — zod hands back a copy, and
+a validator that quietly rewrites what it validates would make dev and production disagree in
+exactly the situation where that hurts most.
+
+Output DTO schemas and the `ApiResponse` envelope are `z.strictObject`s for this to be worth
+anything: a plain `z.object` accepts (and silently strips) unknown keys, which is exactly the
+failure mode being guarded against — a new `@Column()` on an entity riding along to the
+renderer.
 
 ### Errors carry codes, not HTTP numbers
 

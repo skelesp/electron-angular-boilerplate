@@ -31,7 +31,8 @@ never affects projects already created from it.
 - `shared/src/apiDefinition/registry.ts` combines every domain into `apiRegistry`
   (runtime) and `AppApiRegistry` (compile-time).
 - `electron-app`'s `handlersRegistry.ts` validates every incoming IPC payload against
-  its channel's zod schema before the handler runs, and always returns an
+  its channel's zod schema before the handler runs, validates the response against the
+  channel's output schema on the way back (in development builds), and always returns an
   `ApiResponse<T>` envelope (`{status: 'success', data} | {status: 'error', error}`) -
   handlers themselves can just throw.
 - `angular-app`'s `ElectronService.invoke(channel, data)` is fully typed against

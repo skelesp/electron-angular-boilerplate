@@ -59,13 +59,44 @@ describe('wrapHandler', () => {
   });
 
   it('passes validated input through and returns the handler result unchanged for valid input', async () => {
-    const fakeResult = { status: 'success' as const, data: { id: '1' } };
+    const now = new Date();
+    const fakeResult = {
+      status: 'success' as const,
+      data: { id: '1', title: 'ok', content: 'ok', createdAt: now, updatedAt: now },
+    };
     const handler = vi.fn().mockResolvedValue(fakeResult);
     const wrapped = wrapHandler(channel, handler);
 
     const result = await wrapped({ title: 'ok', content: 'ok' });
 
     expect(handler).toHaveBeenCalledWith({ title: 'ok', content: 'ok' });
+    // Returned by identity, not re-parsed into a copy - see validateOutput.
     expect(result).toBe(fakeResult);
+  });
+
+  it('rejects a response that omits a field its output schema declares', async () => {
+    const wrapped = wrapHandler(channel, async () => ({ status: 'success', data: { id: '1' } }));
+
+    const result = await wrapped({ title: 'ok', content: 'ok' });
+
+    expect(result).toMatchObject({ status: 'error', error: { code: ApiErrorCode.CONTRACT_VIOLATION } });
+  });
+
+  // The reason output validation exists: a handler returning its TypeORM entity instead of
+  // a DTO type-checks for as long as the two shapes agree, and silently starts leaking the
+  // moment a column is added. Strict output DTOs turn that into a caught failure.
+  it('rejects a response carrying a field the output DTO never declared', async () => {
+    const now = new Date();
+    const wrapped = wrapHandler(channel, async () => ({
+      status: 'success',
+      data: { id: '1', title: 'ok', content: 'ok', createdAt: now, updatedAt: now, internalNotes: 'leaked' },
+    }));
+
+    const result = await wrapped({ title: 'ok', content: 'ok' });
+
+    expect(result).toMatchObject({ status: 'error', error: { code: ApiErrorCode.CONTRACT_VIOLATION } });
+    if (result && typeof result === 'object' && 'error' in result) {
+      expect(JSON.stringify(result)).toContain('internalNotes');
+    }
   });
 });

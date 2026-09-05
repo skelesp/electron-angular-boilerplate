@@ -36,4 +36,8 @@ describe('apiResponseSchema', () => {
     const result = schema.safeParse({ status: 'error', error: { code: ApiErrorCode.INTERNAL, details: 'boom' } });
     expect(result.success).toBe(true);
   });
+
+  it('rejects an envelope with a field the contract never declared', () => {
+    expect(schema.safeParse({ status: 'success', data: { id: '1' }, sneaky: true }).success).toBe(false);
+  });
 });

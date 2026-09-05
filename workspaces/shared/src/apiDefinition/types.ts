@@ -44,15 +44,19 @@ export type Handlers<T extends ApiRegistry> = {
  * Zod schema for the ApiResponse<T> envelope, parameterized over the schema
  * of the success payload. This is the single source of truth: the runtime
  * validator and the TS type (via z.infer) are derived from the same definition.
+ *
+ * Both branches are `strictObject`s so that an envelope carrying a field the contract
+ * never declared fails validation instead of being silently accepted (or, worse, quietly
+ * stripped on one side of the boundary and not the other).
  */
 export const apiResponseSchema = <TDataSchema extends z.ZodType>(dataSchema: TDataSchema) =>
   z.discriminatedUnion('status', [
-    z.object({
+    z.strictObject({
       status: z.literal('success'),
       data: dataSchema,
       timestamp: z.string().optional(),
       meta: z
-        .object({
+        .strictObject({
           totalItems: z.number().optional(),
           page: z.number().optional(),
           pageSize: z.number().optional(),
@@ -60,9 +64,9 @@ export const apiResponseSchema = <TDataSchema extends z.ZodType>(dataSchema: TDa
         })
         .optional(),
     }),
-    z.object({
+    z.strictObject({
       status: z.literal('error'),
-      error: z.object({
+      error: z.strictObject({
         code: apiErrorCodeSchema,
         details: z.string(),
       }),
@@ -75,6 +79,10 @@ export const apiResponseSchema = <TDataSchema extends z.ZodType>(dataSchema: TDa
  * usable both to validate a payload at runtime (schema.parse) and to derive
  * its TS type at compile time (z.infer) - there is no separate hand-written
  * type to keep in sync.
+ *
+ * `outputSchema` is not decoration: electron-app's `wrapHandler` parses every response
+ * against it in development builds, so a handler that drifts from its own contract fails
+ * loudly at the boundary rather than shipping whatever object it happened to have.
  */
 export interface EndpointDefinition<
   TChannel extends string = string,
