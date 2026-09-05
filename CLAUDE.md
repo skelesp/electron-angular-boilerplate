@@ -69,8 +69,9 @@ API surface, changes touch files in this order:
    name plus its input/output schemas.
 3. **`shared/src/apiDefinition/registry.ts`** — combines every domain into `apiRegistry`
    (runtime object) and `AppApiRegistry` (compile-time type). Every domain must be added here.
-4. **`electron-app/src/models/<domain>/`** — TypeORM entity + repository, plus a
-   `<domain>.handler.ts` with one handler per endpoint. Handlers just implement logic and throw
+4. **`electron-app/src/models/<domain>/`** — TypeORM entity + repository, a `<Domain>.mapper.ts`
+   converting the entity to the contract's DTO, and a `<domain>.handler.ts` with one handler per
+   endpoint. Handlers just implement logic and throw
    on error; they do not do their own input validation or response wrapping.
 5. **`electron-app/src/database/sqlite.config.ts`** — new entities must be added to the
    `entities` array here. `synchronize` is only on in dev (auto-syncs schema to entities);
@@ -104,6 +105,21 @@ Output DTO schemas and the `ApiResponse` envelope are `z.strictObject`s for this
 anything: a plain `z.object` accepts (and silently strips) unknown keys, which is exactly the
 failure mode being guarded against — a new `@Column()` on an entity riding along to the
 renderer.
+
+### Handlers return DTOs, not entities
+
+Every domain gets a `<Domain>.mapper.ts` (`toNoteDto` for the reference domain), mapping the
+TypeORM entity to the DTO the contract declares, field by field.
+
+`NoteRecord` and `NoteDto` have the same shape today, so returning the entity straight from a
+handler type-checks — and then the first `@Column()` someone adds for internal bookkeeping (a
+soft-delete flag, an owner id, a moderation note) is shipped to the renderer by a handler
+nobody edited. Listing the fields means adding a column is inert until someone decides to
+expose it, and the compiler flags the DTO fields you forgot.
+
+The mapper is the fix; the strict output DTOs and the development-time output validation above
+are the backstop for a domain whose author forgot one. Keep both — a boilerplate teaches the
+pattern, not just the outcome.
 
 ### Errors carry codes, not HTTP numbers
 

@@ -14,6 +14,7 @@ import {
 } from '@electron-angular-boilerplate/shared';
 import { getDataSource } from '../../database/sqlite.config';
 import { NoteRepository } from './Note.repository';
+import { toNoteDto } from './Note.mapper';
 
 class NoteHandler {
   /**
@@ -30,7 +31,7 @@ class NoteHandler {
   async createNote(input: CreateNoteInput): Promise<CreateNoteOutput> {
     const repository = this.notes;
     const note = await repository.save(repository.create(input));
-    return { status: 'success', data: note };
+    return { status: 'success', data: toNoteDto(note) };
   }
 
   async getNote(input: GetNoteInput): Promise<GetNoteOutput> {
@@ -40,14 +41,14 @@ class NoteHandler {
       // is part of this endpoint's contract, and the renderer can branch on it.
       throw new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found');
     }
-    return { status: 'success', data: note };
+    return { status: 'success', data: toNoteDto(note) };
   }
 
   async listNotes(): Promise<ListNotesOutput> {
     const notes = await this.notes.findAllOrderedByCreatedAt();
     return {
       status: 'success',
-      data: notes,
+      data: notes.map(toNoteDto),
       meta: { totalItems: notes.length },
     };
   }

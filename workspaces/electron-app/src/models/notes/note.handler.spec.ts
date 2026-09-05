@@ -29,6 +29,15 @@ describe('noteHandlers', () => {
     }
   });
 
+  it('createNote returns only the fields the DTO declares, not the whole entity', async () => {
+    const result = await noteHandlers['note.create']({ title: 'Mapped', content: 'body' });
+    if (result.status !== 'success') throw new Error('setup failed');
+
+    // toNoteDto() is what makes this true. Without it the entity would be returned
+    // directly and any future column would ride along to the renderer.
+    expect(Object.keys(result.data).sort()).toEqual(['content', 'createdAt', 'id', 'title', 'updatedAt']);
+  });
+
   it('getNote returns a previously created note', async () => {
     const created = await noteHandlers['note.create']({ title: 'Find me', content: 'body' });
     if (created.status !== 'success') throw new Error('setup failed');
