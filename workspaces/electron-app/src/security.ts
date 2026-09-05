@@ -1,7 +1,7 @@
 import { app, session, shell, WebContents } from 'electron';
 import { isAbsolute, join, relative } from 'path';
 import { fileURLToPath } from 'url';
-import { logger } from './logger';
+import { getLogger } from './logger';
 
 /** Where the Angular dev server runs; the only origin the renderer may navigate to in dev. */
 export const DEV_SERVER_ORIGIN = 'http://localhost:4200';
@@ -74,7 +74,7 @@ function openExternally(target: string): void {
     return;
   }
   if (protocol !== 'http:' && protocol !== 'https:') {
-    logger.warn(`Refused to open ${target} externally: unsupported scheme`);
+    getLogger().warn(`Refused to open ${target} externally: unsupported scheme`);
     return;
   }
   void shell.openExternal(target);
@@ -89,7 +89,7 @@ function openExternally(target: string): void {
  */
 export function attachNavigationGuards(contents: WebContents): void {
   contents.setWindowOpenHandler(({ url }) => {
-    logger.info(`Denied window.open for ${url}; handing it to the default browser`);
+    getLogger().info(`Denied window.open for ${url}; handing it to the default browser`);
     openExternally(url);
     return { action: 'deny' };
   });
@@ -99,7 +99,7 @@ export function attachNavigationGuards(contents: WebContents): void {
       return;
     }
     event.preventDefault();
-    logger.warn(`Blocked navigation to ${url}`);
+    getLogger().warn(`Blocked navigation to ${url}`);
     openExternally(url);
   };
   contents.on('will-navigate', guard);
@@ -109,6 +109,6 @@ export function attachNavigationGuards(contents: WebContents): void {
   // can't introduce one with weaker webPreferences than the main window's.
   contents.on('will-attach-webview', (event) => {
     event.preventDefault();
-    logger.warn('Blocked an attempt to attach a <webview>');
+    getLogger().warn('Blocked an attempt to attach a <webview>');
   });
 }

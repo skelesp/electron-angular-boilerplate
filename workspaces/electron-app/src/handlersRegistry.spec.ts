@@ -1,37 +1,22 @@
-import { describe, it, expect, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { noteEndpoints } from '@electron-angular-boilerplate/shared';
+import { useTestDataSource } from './test-utils/sqliteTestDataSource';
+import { wrapHandler } from './handlersRegistry';
 
-// handlersRegistry.ts imports `ipcMain` from 'electron' directly, and imports note.handler.ts
-// which (via sqlite.config.ts and logger.ts) needs `app` from 'electron' too - both crash
-// outside a real Electron process. See note.handler.spec.ts for why the DataSource has to be
-// built inside vi.hoisted's own dynamic imports rather than via this file's top-level imports.
-const testDataSource = await vi.hoisted(async () => {
-  await import('reflect-metadata');
-  const { DataSource } = await import('typeorm');
-  const { NoteRecord } = await import('./models/notes/Note.entity');
-  const dataSource = new DataSource({
-    type: 'better-sqlite3',
-    database: ':memory:',
-    synchronize: true,
-    entities: [NoteRecord],
-  });
-  await dataSource.initialize();
-  return dataSource;
-});
-
-vi.mock('electron', () => ({
-  ipcMain: { handle: vi.fn() },
-  app: { isPackaged: false, getPath: () => '/tmp' },
-}));
-vi.mock('./database/sqlite.config', () => ({ AppDataSource: testDataSource }));
-
-const { wrapHandler } = await import('./handlersRegistry');
-
+// Importing handlersRegistry.ts pulls in every domain's handlers (and `ipcMain`), but none
+// of that touches Electron or a database until a handler actually runs - so an in-memory
+// DataSource is all the setup this needs. `registerAllHandlers()` is the one export that
+// does need a real `ipcMain`, and it isn't exercised here.
 describe('wrapHandler', () => {
   const channel = noteEndpoints.create.channel;
+  let teardown: () => Promise<void>;
+
+  beforeAll(async () => {
+    ({ teardown } = await useTestDataSource());
+  });
 
   afterAll(async () => {
-    await testDataSource.destroy();
+    await teardown();
   });
 
   it('returns a 400 envelope without calling the handler when input fails validation', async () => {

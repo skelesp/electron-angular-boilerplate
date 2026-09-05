@@ -1,7 +1,7 @@
 import { app, screen, BrowserWindow } from 'electron';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { logger } from './logger';
+import { getLogger } from './logger';
 
 /**
  * Persisted window geometry, so the app reopens where the user last left it instead of on a
@@ -101,6 +101,6 @@ export function saveWindowState(window: BrowserWindow): void {
   try {
     writeFileSync(stateFilePath(), JSON.stringify(state, null, 2), 'utf-8');
   } catch (error) {
-    logger.warn('Could not persist window state:', error);
+    getLogger().warn('Could not persist window state:', error);
   }
 }

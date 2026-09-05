@@ -10,23 +10,29 @@ import {
   Handlers,
   noteEndpoints,
 } from '@electron-angular-boilerplate/shared';
-import { AppDataSource } from '../../database/sqlite.config';
+import { getDataSource } from '../../database/sqlite.config';
 import { NoteRepository } from './Note.repository';
 
 class NoteHandler {
-  private noteRepository: NoteRepository;
-
-  constructor() {
-    this.noteRepository = new NoteRepository(AppDataSource);
+  /**
+   * Resolved per call rather than in the constructor. `noteHandlers` below is built at
+   * module load, and a constructor that reached for the DataSource would mean importing
+   * this file required a live database - which is what used to force every handler spec
+   * to mock `sqlite.config` out entirely. Building a repository is just wrapping an
+   * entity manager, so doing it per call costs nothing.
+   */
+  private get notes(): NoteRepository {
+    return new NoteRepository(getDataSource());
   }
 
   async createNote(input: CreateNoteInput): Promise<CreateNoteOutput> {
-    const note = await this.noteRepository.save(this.noteRepository.create(input));
+    const repository = this.notes;
+    const note = await repository.save(repository.create(input));
     return { status: 'success', data: note };
   }
 
   async getNote(input: GetNoteInput): Promise<GetNoteOutput> {
-    const note = await this.noteRepository.findOne({ where: { id: input.id } });
+    const note = await this.notes.findOne({ where: { id: input.id } });
     if (!note) {
       throw new Error('Note not found');
     }
@@ -34,7 +40,7 @@ class NoteHandler {
   }
 
   async listNotes(): Promise<ListNotesOutput> {
-    const notes = await this.noteRepository.findAllOrderedByCreatedAt();
+    const notes = await this.notes.findAllOrderedByCreatedAt();
     return {
       status: 'success',
       data: notes,
@@ -43,7 +49,7 @@ class NoteHandler {
   }
 
   async deleteNote(input: DeleteNoteInput): Promise<DeleteNoteOutput> {
-    const result = await this.noteRepository.delete({ id: input.id });
+    const result = await this.notes.delete({ id: input.id });
     if (!result.affected) {
       throw new Error('Note not found');
     }

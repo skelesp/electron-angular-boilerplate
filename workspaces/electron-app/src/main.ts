@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, session } from 'electron';
 import { initializeDatabase } from './database/sqlite.config';
 import { registerAllHandlers } from './handlersRegistry';
 import { projectPaths } from './config/project';
-import { logger } from './logger';
+import { getLogger } from './logger';
 import { buildAppMenu } from './menu';
 import { applyProductionCsp, attachNavigationGuards, DEV_SERVER_ORIGIN, RENDERER_INDEX } from './security';
 import { initializeAutoUpdater } from './updater';
@@ -79,7 +79,7 @@ const MAX_CRASHES_IN_WINDOW = 3;
 let recentCrashes: number[] = [];
 
 function handleRendererGone(reason: string) {
-  logger.error('Renderer process gone:', reason);
+  getLogger().error('Renderer process gone:', reason);
 
   const now = Date.now();
   recentCrashes = [...recentCrashes, now].filter((at) => now - at < CRASH_WINDOW_MS);
@@ -90,7 +90,7 @@ function handleRendererGone(reason: string) {
   }
 
   if (recentCrashes.length > MAX_CRASHES_IN_WINDOW) {
-    logger.error(`Renderer crashed ${recentCrashes.length} times in ${CRASH_WINDOW_MS}ms; giving up`);
+    getLogger().error(`Renderer crashed ${recentCrashes.length} times in ${CRASH_WINDOW_MS}ms; giving up`);
     dialog.showErrorBox(
       `${app.getName()} keeps crashing`,
       `The application window crashed repeatedly (${reason}) and will now close.`
@@ -137,7 +137,7 @@ if (!isPrimaryInstance) {
 
   app.on('window-all-closed', function () {
     session.defaultSession.clearCache().then(() => {
-      logger.debug('Cache cleared');
+      getLogger().debug('Cache cleared');
     });
     if (process.platform !== 'darwin') app.quit();
   });
@@ -154,7 +154,7 @@ if (!isPrimaryInstance) {
 let handlingFatalError = false;
 
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception in main process:', error);
+  getLogger().error('Uncaught exception in main process:', error);
   if (handlingFatalError) {
     // The error handler itself threw - don't loop, just go.
     app.exit(1);

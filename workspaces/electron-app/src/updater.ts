@@ -2,7 +2,7 @@ import { app, dialog } from 'electron';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { autoUpdater } from 'electron-updater';
-import { logger } from './logger';
+import { getLogger } from './logger';
 
 /**
  * A long-running desktop app can stay open for days, so a single check at startup would miss
@@ -31,7 +31,7 @@ async function checkForUpdates(): Promise<void> {
     // Never fatal: no network, a release that isn't published yet, or an unsigned macOS build
     // (see the signing note below) all surface here, and none of them are a reason to stop the
     // app the user actually launched.
-    logger.warn('Update check failed:', error);
+    getLogger().warn('Update check failed:', error);
   }
 }
 
@@ -58,35 +58,35 @@ async function checkForUpdates(): Promise<void> {
  */
 export function initializeAutoUpdater(): void {
   if (!app.isPackaged) {
-    logger.debug('Auto-update disabled: not a packaged build');
+    getLogger().debug('Auto-update disabled: not a packaged build');
     return;
   }
 
   if (!hasUpdateFeed()) {
-    logger.info('Auto-update disabled: no app-update.yml in this build');
+    getLogger().info('Auto-update disabled: no app-update.yml in this build');
     return;
   }
 
-  autoUpdater.logger = logger;
+  autoUpdater.logger = getLogger();
   // The update is fetched in the background and swapped in on the next quit, so the user is
   // only ever interrupted by the prompt below - never by a download they have to wait for.
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('update-available', (info) => {
-    logger.info(`Update available: ${info.version}`);
+    getLogger().info(`Update available: ${info.version}`);
   });
 
   autoUpdater.on('update-not-available', () => {
-    logger.debug('No update available');
+    getLogger().debug('No update available');
   });
 
   autoUpdater.on('error', (error) => {
-    logger.warn('Auto-updater error:', error);
+    getLogger().warn('Auto-updater error:', error);
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
-    logger.info(`Update downloaded: ${info.version}`);
+    getLogger().info(`Update downloaded: ${info.version}`);
 
     const { response } = await dialog.showMessageBox({
       type: 'info',

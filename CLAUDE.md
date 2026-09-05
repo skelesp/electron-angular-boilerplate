@@ -197,19 +197,36 @@ That builder is marked `[EXPERIMENTAL]` by Angular itself. Spec files use the `.
 and explicit `import { describe, it, expect, vi } from 'vitest'` (no globals mode) everywhere,
 including in `angular-app`.
 
-`electron-app`'s code can't just be imported into a test file as-is:
-`database/sqlite.config.ts` and `logger.ts` both read `app` from `electron` at **module load
-time** (not inside a function), which crashes outside a real Electron process — `electron`
-resolves to a stub with no real `app`/`ipcMain` under plain Node/Vitest. Any spec that imports
-`handlersRegistry.ts` or a domain's `*.handler.ts` — directly or transitively — needs
-`vi.mock('electron', ...)` and/or `vi.mock('../../database/sqlite.config', ...)` (swapping in a
-real in-memory `DataSource`, e.g. `src/test-utils/sqliteTestDataSource.ts`) before importing it.
-Because `vi.mock`/`vi.hoisted` are hoisted above this file's own top-level imports, building an
-async dependency (like an initialized `DataSource`) for a mock factory to use has to happen
-inside `vi.hoisted(async () => {...})`'s own dynamic `import()`s, not via regular imports — see
-`handlersRegistry.spec.ts` and `models/notes/note.handler.spec.ts` for the pattern. This is not
-something to refactor away; it's inherent to `sqlite.config.ts`'s module-level `app.isPackaged`
-check (see "Packaging" above) and just needs mocking around in tests.
+### Nothing in `electron-app` touches Electron at import time — keep it that way
+
+`electron-app`'s modules are plain-Node-importable, and a fair amount of design goes into
+keeping them that way. Under Vitest the `electron` package resolves to a path string, so `app`
+and `ipcMain` are `undefined`; anything that reads `app.isPackaged` or opens a database **at
+module load** therefore crashes on import, before a spec can mock anything.
+
+The rule is: read Electron's globals inside functions, never at module scope.
+
+- `env.ts` owns the one `app?.isPackaged` read (`isPackagedBuild()` / `isDevBuild()`), treating
+  "no Electron at all" as a development build — a default that only ever turns extra checking
+  on, never off.
+- `logger.ts` exports `getLogger()`, which configures the transports on first call rather than
+  at import.
+- `database/sqlite.config.ts` exports `getDataSource()`, which builds the DataSource on first
+  call, plus `setDataSource()` / `resetDataSource()` for tests.
+- Handlers resolve their repository per request (`new NoteRepository(getDataSource())` behind a
+  getter), not in a constructor — `noteHandlers` is built at module load, so a constructor that
+  reached for the DataSource would put a live database back on the import path.
+
+The payoff is what a handler spec now looks like: `await useTestDataSource()` in a `beforeAll`,
+its `teardown` in the matching `afterAll`, and a normal top-level `import` of the handler. No
+`vi.mock`, no `vi.hoisted`, no `vi.hoisted(async () => …)` dance to build an initialized
+`DataSource` a mock factory can close over. See `models/notes/note.handler.spec.ts` and
+`handlersRegistry.spec.ts`. **If a new domain's spec needs mocking ceremony to import, that's
+the signal something went back to doing work at module load** — fix the module, not the spec.
+
+`vi.mock('electron', …)` is still the right tool for the two things that genuinely need a real
+Electron API rather than merely importing one: `events.spec.ts` (which needs a fake
+`BrowserWindow` to observe the broadcast) and `updater.spec.ts`.
 
 ESLint's `parserOptions.projectService` needs every linted file to belong to some tsconfig's
 `"include"`. Spec files, `src/test-utils/**`, and each workspace's `vitest.config.ts` are
@@ -430,7 +447,9 @@ a developer's local setup or a debugging affordance to end users; don't "simplif
   preload or in anything `shared` exports) if you don't want to revisit this.
 - The SQLite file path is resolved relative to `__dirname` (not `process.cwd()`), so it works
   regardless of the process's working directory: dev uses `electron-app/data/boilerplate.sqlite`,
-  packaged builds use `app.getPath('userData')`. See `electron-app/src/database/sqlite.config.ts`.
+  packaged builds use `app.getPath('userData')`. Reached through `getDataSource()`, which
+  resolves that path on first call rather than at import. See
+  `electron-app/src/database/sqlite.config.ts`.
 - Logging goes through `electron-app/src/logger.ts` (`electron-log`, level gated by
   `app.isPackaged`) rather than raw `console.*` in the main process.
 - Fonts are bundled via `@fontsource/roboto` and `@fontsource/material-icons`, imported from

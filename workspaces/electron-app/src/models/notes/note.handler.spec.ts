@@ -1,34 +1,21 @@
-import { describe, it, expect, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { useTestDataSource } from '../../test-utils/sqliteTestDataSource';
+import { noteHandlers } from './note.handler';
 
-// note.handler.ts imports AppDataSource from ../../database/sqlite.config, which imports
-// `app` from 'electron' and reads app.isPackaged at module load time - that crashes outside a
-// real Electron process. Replacing the whole module with a real, already-initialized test
-// DataSource means sqlite.config.ts's implementation (and its `electron` import) never runs.
-//
-// vi.mock factories can't reference this file's own top-level imports (they're hoisted above
-// them), so the DataSource is built inside vi.hoisted's own dynamic imports instead - the
-// documented pattern for hoisting an async value a mock factory depends on.
-const testDataSource = await vi.hoisted(async () => {
-  await import('reflect-metadata');
-  const { DataSource } = await import('typeorm');
-  const { NoteRecord } = await import('./Note.entity');
-  const dataSource = new DataSource({
-    type: 'better-sqlite3',
-    database: ':memory:',
-    synchronize: true,
-    entities: [NoteRecord],
-  });
-  await dataSource.initialize();
-  return dataSource;
-});
-
-vi.mock('../../database/sqlite.config', () => ({ AppDataSource: testDataSource }));
-
-const { noteHandlers } = await import('./note.handler');
-
+// Note what isn't here: no vi.mock, no vi.hoisted, no stand-in for `electron`. The
+// handler resolves its repository through `getDataSource()` when a request arrives rather
+// than at import time, so pointing that at an in-memory database is the entire setup. Any
+// new domain's spec should look this plain - if it doesn't, something in the import graph
+// went back to doing work at module load.
 describe('noteHandlers', () => {
+  let teardown: () => Promise<void>;
+
+  beforeAll(async () => {
+    ({ teardown } = await useTestDataSource());
+  });
+
   afterAll(async () => {
-    await testDataSource.destroy();
+    await teardown();
   });
 
   it('createNote saves and returns the note', async () => {
