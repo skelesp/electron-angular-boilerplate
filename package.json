@@ -32,8 +32,9 @@
     "coverage:summary": "node scripts/coverage-summary.mjs",
     "package:dir": "npm run package -- --dir --publish never",
     "test:e2e": "npm run package:dir && npm --workspace=workspaces/e2e run test",
-    "lint": "npm run lint --workspaces --if-present",
-    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "compile:shared": "npm --workspace=workspaces/shared run build:prod",
+    "lint": "npm run compile:shared && npm run lint --workspaces --if-present",
+    "lint:fix": "npm run compile:shared && npm run lint:fix --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "npm run clean --workspaces --if-present"

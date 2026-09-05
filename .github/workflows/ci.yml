@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      # No `build:shared` step needed before this: the root `lint` script compiles `shared`
+      # itself, because linting a fresh checkout without it reports every cross-workspace
+      # import as unresolved. See the `lint` entry in CLAUDE.md.
       - run: npm run lint
 
       - run: npm run format:check

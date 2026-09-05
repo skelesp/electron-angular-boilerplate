@@ -22,7 +22,17 @@ npm start                      # build:shared, then run watch:shared + Angular d
 
 - `npm run build` — builds `shared`, then `electron-app`, then `angular-app`, in that order (each depends on the previous).
 - `npm run build:shared` / `build:electron-app` / `build:angular-app` — build one workspace.
-- `npm run lint` / `npm run lint:fix` — runs across all workspaces (`npm run lint --workspaces --if-present`).
+- `npm run lint` / `npm run lint:fix` — `compile:shared`, then eslint across all workspaces
+  (`npm run lint --workspaces --if-present`). The `compile:shared` prefix is load-bearing, not
+  a convenience: every other workspace imports `@electron-angular-boilerplate/shared`, whose
+  `main`/`types` point at its `dist`, so on a checkout that has never been built
+  `import-x/no-unresolved` flags every one of those imports and the type-aware rules see `any`.
+  A working copy normally has a `dist` from the last build, which is why that only ever showed
+  up in CI. `compile:shared` runs `shared`'s `build:prod` (`tsc --build .`) rather than
+  `build:shared`: incremental (~0.5s when up to date) and, unlike `build:shared`, it does not
+  `rimraf dist` first — which would blow a hole in a running `npm start` session every time
+  someone linted. Linting a single workspace directly (`npm --workspace=… run lint`) skips this
+  and needs `shared` already built.
 - `npm run format` / `npm run format:check` — Prettier over the whole repo.
 - `npm run test` — runs `shared`, `electron-app`, and `angular-app`'s Vitest suites (explicitly
   scoped, not `--workspaces`, so it doesn't also try to run `e2e`'s Playwright suite — see
