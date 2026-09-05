@@ -94,6 +94,10 @@ jobs:
           key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
           restore-keys: ${{ runner.os }}-electron-
 
+      # After the cache restore, not before: `electron`'s postinstall is what downloads the
+      # binary this caches.
+      - run: npm ci
+
       # --dir only, not a full installer: it exercises the same app packing, dependency walk and
       # native-module handling in a fraction of the time. Installers are the release workflow's
       # job. `--publish never` matters - electron-builder turns publishing on *implicitly* when
