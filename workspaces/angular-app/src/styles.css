@@ -40,3 +40,23 @@ body {
   margin: 0;
   font-family: Roboto, 'Helvetica Neue', sans-serif;
 }
+
+/*
+ * Dark mode. `color-scheme` is set on <html> by ThemeService from what the main process
+ * reports (see services/theme.service.ts), and every `light-dark()` value below - plus the
+ * scrollbars, form controls and default text the browser draws itself - resolves against
+ * it. Declaring `light dark` here means a renderer opened without Electron (or before the
+ * first `theme.get` answers) still follows the OS rather than assuming light.
+ *
+ * Angular Material's prebuilt themes are light-only, which is why the handful of surfaces
+ * this app paints itself carry their own two-value tokens. Swap in a `mat.theme()` SCSS
+ * theme if you want Material's own components to follow along too.
+ */
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background-color: light-dark(#faf9fd, #131316);
+  color: light-dark(#1a1b1f, #e4e2e6);
+}

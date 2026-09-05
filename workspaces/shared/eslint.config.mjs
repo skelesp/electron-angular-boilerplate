@@ -20,6 +20,8 @@ export default tseslint.config(...baseConfig, {
           'src/apiDefinition/validation.spec.ts',
           'src/apiDefinition/note/events.spec.ts',
           'src/apiDefinition/note/types.spec.ts',
+          'src/apiDefinition/theme/events.spec.ts',
+          'src/apiDefinition/theme/types.spec.ts',
           'vitest.config.ts',
         ],
       },

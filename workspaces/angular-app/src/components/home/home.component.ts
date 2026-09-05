@@ -1,9 +1,9 @@
 import { Component } from '@angular/core';
-import { ApiTesterComponent } from '../api-tester/api-tester.component';
+import { NotesComponent } from '../notes/notes.component';
 
 @Component({
   selector: 'app-home',
-  imports: [ApiTesterComponent],
+  imports: [NotesComponent],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })

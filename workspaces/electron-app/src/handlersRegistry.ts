@@ -10,11 +10,13 @@ import {
 import { ipcMain } from 'electron';
 import { isDevBuild } from './env';
 import { noteHandlers } from './models/notes/note.handler';
+import { themeHandlers } from './models/theme/theme.handler';
 import { getLogger } from './logger';
 
 // Add one spread entry per domain's handlers object here.
 export const handlersRegistry: Handlers<AppApiRegistry> = {
   ...noteHandlers,
+  ...themeHandlers,
 };
 
 function toErrorResponse(code: ApiErrorCode, details: string): ApiResponse<never> {

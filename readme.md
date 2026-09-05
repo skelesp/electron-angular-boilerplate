@@ -67,10 +67,11 @@ the mapper fails loudly instead.
 `new ApiError(ApiErrorCode.NOT_FOUND, 'Note not found')`; anything else it throws
 becomes `INTERNAL`. The renderer can `switch` on the code.
 
-A minimal example domain (`note`: create/get/list/delete, plus a `note.changed` event) is
-included end-to-end - shared schema, electron-app TypeORM entity/repository/mapper/handler,
-and an Angular service + `ApiTesterComponent` - to demonstrate the pattern. Replace it with
-your own domain(s).
+Two example domains are included end-to-end. `note` (create/get/list/delete, plus a
+`note.changed` event) is the full stack: shared schema, TypeORM entity/repository/mapper/handler,
+Angular service, `NotesComponent`. `theme` is the same contract with no database behind it -
+its store is the OS, read and written through Electron's `nativeTheme`, so the app follows your
+system dark-mode setting and can override it. Replace them with your own domain(s).
 
 ## Adding a new API domain
 
@@ -94,11 +95,32 @@ your own domain(s).
    outcomes the contract documents; emit events with `emitAppEvent`.
 10. Spread the handler's exported object into `handlersRegistry` in `handlersRegistry.ts`.
 
+Steps 6-8 only apply to a domain that persists something. A domain backed by the OS, a file
+watcher or a remote service just needs the handler (see `models/theme/theme.handler.ts`).
+
 **Angular app**
 
 11. Add a `<domain>.service.ts` under `services/` that calls `ElectronService.invoke(...)`,
-    and subscribes with `ElectronService.on(...)` if the domain has events.
+    and subscribes with `ElectronService.on(...)` if the domain has events. Load through
+    `resource()` and expose plain signals (`notes`, `loading`, `error`) rather than doing
+    async work in the constructor.
 12. Use it from a component.
+
+## The Angular renderer
+
+- **Zoneless** (`provideZonelessChangeDetection()`, no `zone.js` anywhere). State a template
+  reads has to be a signal - that is the one rule this imposes.
+- **`resource()`** for anything loaded asynchronously, so services don't do async work in their
+  constructors and their loading/error state isn't hand-rolled.
+- **`provideBrowserGlobalErrorListeners()`**, because in a packaged app nobody has DevTools open
+  to catch what would otherwise be lost.
+- **Routing with `withHashLocation()`** and one lazily loaded route (`loadComponent`) as the
+  worked example. Hash routing is required, not stylistic: a packaged build is served from
+  `file://`, where the path strategy's pushState URLs can't be reloaded.
+- **Dark mode** that follows the OS, applied by writing `color-scheme` onto `<html>` from what
+  the main process reports, with `light-dark()` values in the stylesheets. The `/settings` route
+  can override it; the native window chrome follows along because `nativeTheme` is the source of
+  truth.
 
 ## Development
 

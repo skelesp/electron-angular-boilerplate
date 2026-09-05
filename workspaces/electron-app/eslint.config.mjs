@@ -20,6 +20,7 @@ export default tseslint.config(...baseConfig, {
           'src/handlersRegistry.spec.ts',
           'src/models/notes/Note.repository.spec.ts',
           'src/models/notes/note.handler.spec.ts',
+          'src/models/theme/theme.handler.spec.ts',
           'src/test-utils/sqliteTestDataSource.ts',
           'src/updater.spec.ts',
           'vitest.config.ts',

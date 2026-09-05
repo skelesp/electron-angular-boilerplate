@@ -177,7 +177,26 @@ if the event was actually emitted, bridged and delivered.
 The `note` domain (create/get/list/delete plus a `note.changed` event) is a complete reference
 implementation of this pattern across all three workspaces (`shared/src/apiDefinition/note/`,
 `electron-app/src/models/notes/`, `angular-app/src/services/note.service.ts`, exercised by
-`ApiTesterComponent`). Follow its shape for new domains rather than reinventing it.
+`NotesComponent`). Follow its shape for new domains rather than reinventing it.
+
+### A domain with no database behind it
+
+`theme` (`shared/src/apiDefinition/theme/`, `electron-app/src/models/theme/theme.handler.ts`,
+`angular-app/src/services/theme.service.ts`) is the second reference domain, and exists to show
+that the contract is about the process boundary, not about persistence: it has no entity, no
+repository and no mapper, because its store is the operating system, reached through Electron's
+`nativeTheme`. It still lives under `models/`, is still registered in `handlersRegistry`, and its
+payloads are still validated the same way — what makes something a domain here is the contract in
+`shared`.
+
+It is also the clearest illustration of when to push rather than answer: `theme.changed` carries
+the whole new state (two fields), so the renderer applies it directly instead of re-fetching,
+where `note.changed` carries only what changed and the renderer re-reads through `note.list`.
+`startThemeWatcher()` (called from `whenReady`) is what turns Electron's `nativeTheme.on('updated')`
+into that event, so flipping the OS dark-mode switch repaints the app with no polling anywhere.
+Setting `nativeTheme.themeSource` from the renderer is the point of the write half: it is what
+keeps the native chrome — title bar, menus, dialogs — in step with the CSS, which a renderer
+reading `prefers-color-scheme` on its own could never do.
 
 Renderer-side IPC access is intentionally narrow: `electron-app/src/preload.ts` exposes exactly
 two typed functions — `electronAPI.invoke(channel, data)` and `electronAPI.on(channel, listener)`
@@ -187,6 +206,52 @@ two typed functions — `electronAPI.invoke(channel, data)` and `electronAPI.on(
 `window.electronAPI` directly. `ElectronService` reports a missing bridge (a component spec under
 jsdom, or `ng serve` opened in a plain browser) as a rejected promise / a warned no-op
 subscription rather than a `TypeError` from three frames deep.
+
+## The Angular renderer
+
+Zoneless, signal-based, and deliberately current: this is the half of the template a consumer
+evaluates first, so "would Angular's own docs recommend this today?" is the standard to hold it
+to.
+
+- **`provideZonelessChangeDetection()`** in `app.config.ts`, and **no `zone.js` polyfill** in
+  `angular.json` or in `angular-app`'s dependencies. Change detection is driven by signal reads
+  in templates and by template event listeners. The practical rule this imposes: state a template
+  reads must be a signal — a plain field mutated from a `setTimeout`, a `Promise.then` or an IPC
+  event callback will not repaint. `TestBed` is zoneless by default in Angular 20+, so specs
+  needed no zone providers either.
+- **`provideBrowserGlobalErrorListeners()`** routes uncaught errors and unhandled rejections
+  through Angular's `ErrorHandler`. In a packaged desktop app nobody has DevTools open, so the
+  alternative is that they vanish.
+- **`provideRouter(routes, withHashLocation())`**. The hash strategy is not a style choice: a
+  packaged build is served from `file://`, and the path strategy would have the router pushState
+  to file URLs, which a reload or a back/forward then can't load. `#/settings` never leaves
+  `index.html`.
+- **One lazy route** (`loadComponent` → `SettingsComponent`) as the worked example; the screen the
+  app opens on stays eager (`component:`). The e2e suite navigates to it in the _packaged_ app on
+  purpose — a lazy chunk fetched over `file://` under the production CSP is exactly the kind of
+  thing that works in `ng serve` and fails once shipped.
+- **Services expose signals, not `$`-suffixed ones.** `notes`, `loading`, `error` — a `$` suffix
+  conventionally means an Observable, and reading these is a synchronous call, not a subscription.
+- **`resource()` owns anything loaded asynchronously** (`NoteService.#notes`,
+  `ThemeService.#theme`). It runs its loader off an effect, tracks loading/error itself, and gives
+  the event subscription a single `reload()` to call — which is why neither service does work in
+  its constructor beyond subscribing. That matters most in the specs: a service whose construction
+  kicks off an async load forces every test to know it, and the note spec used to stack
+  `mockResolvedValueOnce`s in injection order and await bare microtasks to cope. Now it awaits
+  `ApplicationRef.whenStable()`, which flushes the effect and waits for the load.
+  - `resource.value()` **throws** when the resource is in its error state, `defaultValue` or not,
+    so public signals read it behind `hasValue()`.
+  - A loader signals failure by throwing; `error()` hands the `Error` back. `theme.changed` and a
+    `setSource` response instead write straight into the resource with `set()`, since the payload
+    _is_ the new value and re-fetching it would be a round trip for data already in hand.
+- **Dark mode is applied with `color-scheme`**, written onto `<html>` by a `ThemeService` effect
+  from what the main process reports. Every `light-dark()` value in `styles.css` and the component
+  styles resolves against it, as do the scrollbars and form controls the browser draws itself.
+  `styles.css` declares `color-scheme: light dark` as the standing default so a renderer opened
+  without Electron (or before the first `theme.get` answers) still follows the OS. Angular
+  Material's prebuilt themes are light-only; the few surfaces this app paints itself carry their
+  own two-value tokens instead, and swapping in a `mat.theme()` SCSS theme is the upgrade path if
+  Material's own components need to follow along.
 
 ## Packaging
 
@@ -288,6 +353,14 @@ That builder is marked `[EXPERIMENTAL]` by Angular itself. Spec files use the `.
 and explicit `import { describe, it, expect, vi } from 'vitest'` (no globals mode) everywhere,
 including in `angular-app`.
 
+`angular-app`'s specs are zoneless, which `TestBed` is by default in Angular 20+ — there is no
+zone.js to load and nothing to configure. What changes in practice is how you wait: `await
+fixture.whenStable()` (or `ApplicationRef.whenStable()` for a service with no fixture) flushes
+effects and pending resources, and is what every spec here awaits instead of counting
+microtasks. Renderer specs fake `ElectronService`, not the service under test — a stub of
+`NoteService` would only prove the stub works, while a fake `invoke`/`on` pair exercises the
+real service, the real resource and the real event subscription.
+
 ### Nothing in `electron-app` touches Electron at import time — keep it that way
 
 `electron-app`'s modules are plain-Node-importable, and a fair amount of design goes into
@@ -337,6 +410,14 @@ full build plus packaging, which is far too slow for the inner loop — but it *
 CI, on Windows, macOS and Linux, as the second half of the `package` job. That job is the
 only thing in this repo that exercises the packaging landmines in "Packaging" above, so
 treat a failure there as a real bug rather than CI flake. See "Release engineering" below.
+
+Two specs, run one at a time (`fullyParallel: false` **and** `workers: 1`, because the app takes
+a single-instance lock — a second spec file starting in parallel would launch an app that
+immediately quits): `note-flow.spec.ts` covers the request/response and event path end to end,
+`settings-route.spec.ts` covers the lazy route, hash routing and the `theme` domain. If the suite
+fails with `Error: Process failed to launch!` before any test body runs, check
+`ELECTRON_RUN_AS_NODE` in the environment first — some editors and agent shells inherit it, and
+it makes every Electron binary start as plain Node (see the diagnosis recipe in "Packaging").
 
 Coverage is off by default and enabled by `npm run test:coverage`, which each workspace
 implements with its own runner: `@vitest/coverage-v8` for `shared` and `electron-app`

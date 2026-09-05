@@ -4,6 +4,7 @@ import { registerAllHandlers } from './handlersRegistry';
 import { projectPaths } from './config/project';
 import { getLogger } from './logger';
 import { buildAppMenu } from './menu';
+import { startThemeWatcher } from './models/theme/theme.handler';
 import { applyProductionCsp, attachNavigationGuards, DEV_SERVER_ORIGIN, RENDERER_INDEX } from './security';
 import { initializeAutoUpdater } from './updater';
 import { loadWindowState, saveWindowState } from './windowState';
@@ -123,6 +124,8 @@ if (!isPrimaryInstance) {
     buildAppMenu();
     await initializeDatabase();
     registerAllHandlers();
+    // Before the window, so the first renderer paint already has the right appearance.
+    startThemeWatcher();
     createWindow();
     // After the window, so a slow or failing update check never delays first paint. It is a
     // no-op in dev and in builds without an update feed - see updater.ts.

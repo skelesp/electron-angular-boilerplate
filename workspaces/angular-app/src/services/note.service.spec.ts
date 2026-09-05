@@ -1,3 +1,4 @@
+import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { NoteService } from './note.service';
@@ -21,6 +22,14 @@ describe('NoteService', () => {
     updatedAt: new Date(),
   };
 
+  /**
+   * The list lives in a `resource`, whose loader is triggered by an effect - so it runs on
+   * the next change detection, not synchronously on injection. `whenStable()` flushes that
+   * and waits for the load, which is why no test here has to count microtasks or stack up
+   * `mockResolvedValueOnce`s in injection order.
+   */
+  const settle = () => TestBed.inject(ApplicationRef).whenStable();
+
   beforeEach(() => {
     invoke = vi.fn();
     unsubscribe = vi.fn();
@@ -34,23 +43,26 @@ describe('NoteService', () => {
     });
   });
 
-  it('loadNotes populates notes$ on a successful response', async () => {
+  it('populates notes on a successful response', async () => {
     invoke.mockResolvedValue({ status: 'success', data: [note], meta: { totalItems: 1 } });
 
     service = TestBed.inject(NoteService);
-    await service.loadNotes();
+    await settle();
 
-    expect(service.notes$()).toEqual([note]);
-    expect(service.error$()).toBeUndefined();
+    expect(invoke).toHaveBeenCalledWith(apiRegistry.note.list.channel, undefined);
+    expect(service.notes()).toEqual([note]);
+    expect(service.error()).toBeUndefined();
+    expect(service.loading()).toBe(false);
   });
 
-  it('loadNotes sets error$ on an error-status response', async () => {
+  it('surfaces an error-status response as error, and keeps the list empty', async () => {
     invoke.mockResolvedValue({ status: 'error', error: { code: ApiErrorCode.INTERNAL, details: 'boom' } });
 
     service = TestBed.inject(NoteService);
-    await service.loadNotes();
+    await settle();
 
-    expect(service.error$()).toBe('boom');
+    expect(service.error()).toBe('boom');
+    expect(service.notes()).toEqual([]);
   });
 
   it('subscribes to the note.changed event on construction', () => {
@@ -62,20 +74,22 @@ describe('NoteService', () => {
   });
 
   it('reloads when the main process reports that notes changed', async () => {
-    invoke.mockResolvedValueOnce({ status: 'success', data: [], meta: { totalItems: 0 } }); // initial load
+    invoke.mockResolvedValueOnce({ status: 'success', data: [], meta: { totalItems: 0 } });
     service = TestBed.inject(NoteService);
-    await vi.waitFor(() => expect(service.notes$()).toEqual([]));
+    await settle();
+    expect(service.notes()).toEqual([]);
 
     invoke.mockResolvedValueOnce({ status: 'success', data: [note], meta: { totalItems: 1 } });
     emit({ reason: 'created', id: note.id });
+    await settle();
 
-    await vi.waitFor(() => expect(service.notes$()).toEqual([note]));
+    expect(service.notes()).toEqual([note]);
   });
 
   it('create calls invoke with the note channel and payload', async () => {
-    invoke.mockResolvedValueOnce({ status: 'success', data: [], meta: { totalItems: 0 } }); // initial load
+    invoke.mockResolvedValueOnce({ status: 'success', data: [], meta: { totalItems: 0 } });
     service = TestBed.inject(NoteService);
-    await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+    await settle();
 
     invoke.mockResolvedValueOnce({ status: 'success', data: note });
 
@@ -86,15 +100,15 @@ describe('NoteService', () => {
       content: 'Milk, eggs',
     });
     expect(result).toEqual(note);
-    // create() no longer reloads by itself - the note.changed event is what refreshes the
+    // create() doesn't reload by itself - the note.changed event is what refreshes the
     // list, so the mutation path stays the same whoever triggered the change.
     expect(invoke).toHaveBeenCalledTimes(2);
   });
 
   it('remove calls invoke with the note id', async () => {
-    invoke.mockResolvedValueOnce({ status: 'success', data: [note], meta: { totalItems: 1 } }); // initial load
+    invoke.mockResolvedValueOnce({ status: 'success', data: [note], meta: { totalItems: 1 } });
     service = TestBed.inject(NoteService);
-    await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+    await settle();
 
     invoke.mockResolvedValueOnce({ status: 'success', data: { id: note.id } });
 
@@ -105,9 +119,9 @@ describe('NoteService', () => {
   });
 
   it('surfaces a NOT_FOUND delete as an error rather than a throw', async () => {
-    invoke.mockResolvedValueOnce({ status: 'success', data: [note], meta: { totalItems: 1 } }); // initial load
+    invoke.mockResolvedValueOnce({ status: 'success', data: [note], meta: { totalItems: 1 } });
     service = TestBed.inject(NoteService);
-    await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+    await settle();
 
     invoke.mockResolvedValueOnce({
       status: 'error',
@@ -115,6 +129,8 @@ describe('NoteService', () => {
     });
 
     expect(await service.remove('gone')).toBe('error');
-    expect(service.error$()).toBe('Note not found');
+    expect(service.error()).toBe('Note not found');
+    // The list itself loaded fine, so the failed mutation must not have emptied it.
+    expect(service.notes()).toEqual([note]);
   });
 });

@@ -1,5 +1,9 @@
 <mat-toolbar class="sticky-header">
   <h1>{{ appName }}</h1>
+  <nav>
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Notes</a>
+    <a routerLink="/settings" routerLinkActive="active">Settings</a>
+  </nav>
 </mat-toolbar>
 
 <main class="content">
