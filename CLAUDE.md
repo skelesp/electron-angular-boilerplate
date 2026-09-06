@@ -453,6 +453,19 @@ the signal something went back to doing work at module load** — fix the module
 Electron API rather than merely importing one: `events.spec.ts` (which needs a fake
 `BrowserWindow` to observe the broadcast) and `updater.spec.ts`.
 
+That "resolves to a path string" is also the reason `electron-app`'s `vitest.config.ts` sets
+**`ELECTRON_OVERRIDE_DIST_PATH`** in `test.env`. Since Electron 44 the package's entry point
+downloads the ~100 MB binary on first `require()` when `node_modules/electron/dist` is missing,
+rather than at install time — and Vitest gives each spec file its own worker, so on a machine
+that has never launched or packaged the app (every CI runner) six workers fire that download at
+once and race each other extracting the same zip: `failed to create '…/LICENSES.chromium.html':
+File exists`, and then `Electron failed to install correctly` in whichever worker lost. It is
+non-deterministic, so it reads like flake. The env var makes the entry return a joined path
+without touching the filesystem or installing anything; that path is never opened. It has to be
+an environment variable rather than a Vite alias, because `electron-log` and `electron-updater`
+reach for `require('electron')` through Node's own resolution, which `test.alias` never sees.
+To reproduce a fresh machine, move `node_modules/electron/dist` and `path.txt` aside.
+
 ESLint's `parserOptions.projectService` needs every linted file to belong to some tsconfig's
 `"include"`. Spec files, `src/test-utils/**`, and each workspace's `vitest.config.ts` are
 excluded from the main `tsconfig.json` (so `tsc --build` never emits them to `dist/`) — they're
