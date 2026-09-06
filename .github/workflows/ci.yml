@@ -82,7 +82,7 @@ jobs:
       # Electron's binary zip is ~100 MB per platform and is otherwise re-downloaded on every
       # run. Paths that don't exist on a given runner are simply skipped.
       - name: Cache Electron downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/electron
