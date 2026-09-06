@@ -27,7 +27,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # `build-mode: none` is the supported mode for JS/TS: CodeQL reads the sources directly,
       # so there is no npm install or build to keep in sync with the rest of CI. It covers all
