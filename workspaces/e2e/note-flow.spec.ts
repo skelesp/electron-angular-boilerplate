@@ -1,5 +1,5 @@
-import { test, expect, _electron as electron } from '@playwright/test';
-import { resolvePackagedExecutable } from './resolvePackagedExecutable';
+import { test, expect } from '@playwright/test';
+import { launchPackagedApp } from './launchPackagedApp';
 
 // Runs against the packaged app (not `localhost:4200`), specifically because bugs like a
 // sandboxed preload script failing to resolve a dependency, or a CSP blocking something the
@@ -11,7 +11,7 @@ import { resolvePackagedExecutable } from './resolvePackagedExecutable';
 // after its own mutations, so the list can only change because the main process emitted
 // `note.changed` and the preload bridge delivered it.
 test('creating and deleting a note round-trips through IPC to SQLite and back', async () => {
-  const app = await electron.launch({ executablePath: resolvePackagedExecutable() });
+  const app = await launchPackagedApp();
 
   try {
     const window = await app.firstWindow();

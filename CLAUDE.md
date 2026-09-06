@@ -430,10 +430,12 @@ treat a failure there as a real bug rather than CI flake. See "Release engineeri
 Two specs, run one at a time (`fullyParallel: false` **and** `workers: 1`, because the app takes
 a single-instance lock — a second spec file starting in parallel would launch an app that
 immediately quits): `note-flow.spec.ts` covers the request/response and event path end to end,
-`settings-route.spec.ts` covers the lazy route, hash routing and the `theme` domain. If the suite
-fails with `Error: Process failed to launch!` before any test body runs, check
-`ELECTRON_RUN_AS_NODE` in the environment first — some editors and agent shells inherit it, and
-it makes every Electron binary start as plain Node (see the diagnosis recipe in "Packaging").
+`settings-route.spec.ts` covers the lazy route, hash routing and the `theme` domain. Both launch
+through `launchPackagedApp()` rather than calling `electron.launch()` themselves — it drops
+`ELECTRON_RUN_AS_NODE` from the inherited environment, which editor- and agent-spawned shells set
+and which would otherwise fail every spec with a bare `Error: Process failed to launch!` before
+any test body runs (the variable is a real tool — see the diagnosis recipe in "Packaging" — just
+not one the suite can survive inheriting). New specs should go through that helper.
 
 Coverage is off by default and enabled by `npm run test:coverage`, which each workspace
 implements with its own runner: `@vitest/coverage-v8` for `shared` and `electron-app`

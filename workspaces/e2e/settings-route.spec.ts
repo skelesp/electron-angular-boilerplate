@@ -1,12 +1,12 @@
-import { test, expect, _electron as electron } from '@playwright/test';
-import { resolvePackagedExecutable } from './resolvePackagedExecutable';
+import { test, expect } from '@playwright/test';
+import { launchPackagedApp } from './launchPackagedApp';
 
 // Covers the two things about routing that only break once packaged: the lazily loaded
 // route's chunk has to be fetched from `file://` under the production CSP, and the router
 // has to navigate without asking the browser to pushState to a file URL (which is why
 // app.config.ts uses withHashLocation).
 test('the lazily loaded settings route opens in the packaged app', async () => {
-  const app = await electron.launch({ executablePath: resolvePackagedExecutable() });
+  const app = await launchPackagedApp();
 
   try {
     const window = await app.firstWindow();
