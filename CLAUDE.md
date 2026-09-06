@@ -375,6 +375,15 @@ to.
   Material's prebuilt themes are light-only; the few surfaces this app paints itself carry their
   own two-value tokens instead, and swapping in a `mat.theme()` SCSS theme is the upgrade path if
   Material's own components need to follow along.
+- **Source maps are development-only.** `sourceMap` is set in `angular.json`'s `development`
+  configuration, not in the shared `options` block, so `ng build` (which defaults to
+  `production`) emits none. It used to sit in `options`, where it applied to both: the maps were
+  then copied into `electron-app/renderer/` by `copy-renderer.mjs` and packed into `app.asar` —
+  4 MB of maps in a 6 MB renderer, and a readable copy of the app's TypeScript for anyone who
+  ran `npx asar extract`. If you want maps in a shipped build for crash symbolication, add
+  `"sourceMap": { "scripts": true, "hidden": true }` to the `production` configuration rather
+  than moving it back up: `hidden` emits the maps without a `sourceMappingURL` referencing them,
+  which keeps the decision to ship or upload them separate from the decision to generate them.
 
 ## Packaging
 

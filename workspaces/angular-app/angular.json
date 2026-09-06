@@ -24,8 +24,7 @@
               }
             ],
             "styles": ["@angular/material/prebuilt-themes/azure-blue.css", "src/styles.css"],
-            "scripts": [],
-            "sourceMap": true
+            "scripts": []
           },
           "configurations": {
             "production": {
@@ -46,6 +45,15 @@
             "development": {
               "optimization": false,
               "extractLicenses": false,
+              // Source maps are a development-only output, deliberately - `sourceMap` is
+              // not set in the shared `options` above, so a production build emits none.
+              // They would otherwise be copied into electron-app/renderer/ by
+              // copy-renderer.mjs and packed into app.asar: 4 MB of maps in a 6 MB
+              // renderer, and a readable copy of this app's TypeScript for anyone who
+              // unpacks the archive. For crash symbolication in a shipped build, add
+              // "sourceMap": { "scripts": true, "hidden": true } to the production
+              // configuration instead - the maps are emitted but nothing references them,
+              // so you decide separately whether to ship them or upload them somewhere.
               "sourceMap": true
             }
           },

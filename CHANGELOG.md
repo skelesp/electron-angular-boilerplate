@@ -32,6 +32,11 @@ entries below can be assembled from `git log` — see [CONTRIBUTING.md](CONTRIBU
 
 ### Changed
 
+- Source maps are no longer emitted by production Angular builds. `sourceMap` moved out of
+  `angular.json`'s shared `options` block into the `development` configuration, where Angular
+  puts it by default. It was shipping 4 MB of `.map` files inside `app.asar` — two thirds of the
+  packaged renderer — along with a readable copy of the renderer's TypeScript.
+
 - `readme.md` is now `README.md`, with CI/CodeQL/license/version badges, screenshots of the
   example app, and a scripts section listing the full set rather than a third of it.
 - CLAUDE.md's script reference matches the scripts again: `npm run build` includes
