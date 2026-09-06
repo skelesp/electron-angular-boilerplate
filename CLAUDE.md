@@ -20,6 +20,9 @@ npm install
 npm start                      # build:shared, then run watch:shared + Angular dev server + Electron concurrently
 ```
 
+- `npm run init` — rewrites the template's identity into a consumer's own. See "Initializing a
+  copy of the template" below; it is the first thing anyone starting from this repo runs, and
+  the only script here meant to be deleted afterwards.
 - `npm run build` — builds `shared`, then `electron-app`, then `angular-app`, in that order (each depends on the previous).
 - `npm run build:shared` / `build:electron-app` / `build:angular-app` — build one workspace.
 - `npm run lint` / `npm run lint:fix` — `compile:shared`, then eslint across all workspaces
@@ -67,6 +70,48 @@ VS Code: the `Electron+Angular debug` launch compound (`.vscode/launch.json`) ru
 `composite: true`; `angular-app` also references `shared`. If cross-workspace types look
 stale, rebuild `shared` first — everything else imports from `@electron-angular-boilerplate/shared`'s
 compiled `dist`, not its source.
+
+## Initializing a copy of the template
+
+`scripts/init.mjs` (`npm run init`) is what turns this repo into someone's own project. It
+prompts for a product name, npm scope, appId, author, description and SQLite filename — or
+takes them as flags (`--name`, `--scope`, `--app-id`, `--author`, `--description`,
+`--database`, plus `--yes`, `--dry-run` and `--force`) — and rewrites all of them in place.
+
+The friction it removes is real: `@electron-angular-boilerplate/shared` alone appears in about
+twenty files across three workspaces, the lockfile and this document, and a rename that misses
+one fails at `import`, not at review time. Four substituted tokens — the scope, the product
+name, the appId and the SQLite filename — plus the LICENSE copyright line are the whole of the
+template's identity, and `PLACEHOLDER` at the top of the script is the single source of truth
+for them. Introduce a fifth and it goes there and in `buildSubstitutions()`, rather than into a
+list of things a consumer is told to grep for.
+
+Four properties of it are load-bearing:
+
+- **No dependencies, plain Node.** It has to run _before_ `npm install`, because renaming
+  `@<scope>/shared` invalidates the workspace symlinks an earlier install created. The readme
+  documents that order (`npm run init`, then `npm install`), and the script's closing output
+  says so again when it finds an existing `node_modules`.
+- **It skips itself.** `selfPath` is excluded from the walk: this is the one file where the
+  placeholders are supposed to appear verbatim, and substituting them would leave the script
+  unable to recognise what it had already done.
+- **It plans before it writes.** Every `plan*` function collects `{path, contents}` into a map,
+  so `--dry-run` reports exactly what a real run does, and a validation failure aborts with
+  nothing half-written.
+- **Its output stays format-clean.** `format:check` runs in CI on a consumer's very first push,
+  so the JSON it rewrites is emitted as Prettier emits it (two-space `JSON.stringify` plus a
+  trailing newline) and the readme's `<!-- template-only:start -->` / `<!-- template-only:end -->`
+  blocks are stripped along with their trailing blank lines. If you change what init writes,
+  re-check that a freshly initialized copy still passes `npm run format:check`.
+
+The product name is validated against quotes, backslashes, angle brackets and `&` because it is
+substituted verbatim into a single-quoted TypeScript string (`app.component.ts`), an HTML
+`<title>` and raw JSON — contexts with three different escaping rules. Rejecting those few
+characters is proportionate; making the substitution context-aware is not.
+
+`readme.md`'s template-only blocks hold the "Use this template" framing and the init
+instructions themselves. Anything written there that stops being true once the repo is someone
+else's app belongs inside those markers.
 
 ## Architecture: the shared API contract
 

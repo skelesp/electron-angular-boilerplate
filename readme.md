@@ -1,14 +1,44 @@
 # Electron + Angular Boilerplate
 
-A starting point for a desktop app: Angular frontend, Electron main process, a SQLite
-database via TypeORM, and a **shared, runtime-validated API contract** between the two
-(zod schemas double as the source of truth for the TypeScript types, the IPC input and
-output validation, and the payloads of main-process events).
+A desktop app built on Angular, Electron and SQLite: Angular frontend (renderer), Electron
+main process, a SQLite database via TypeORM, and a **shared, runtime-validated API contract**
+between the two (zod schemas double as the source of truth for the TypeScript types, the IPC
+input and output validation, and the payloads of main-process events).
+
+<!-- template-only:start -->
 
 This is a **template repository**. Click "Use this template" on GitHub to start a new,
 fully independent project from it - the new repo has no shared history or dependency
 on this one, so upgrading this boilerplate later (Angular, Electron, TypeORM, ...)
 never affects projects already created from it.
+
+## Starting a project from this template
+
+```
+npm run init
+npm install
+npm start
+```
+
+`npm run init` asks for a product name, an npm scope and a few other details, then rewrites
+this template's identity into yours: the window and installer name, the electron-builder
+`appId`, the `@electron-angular-boilerplate/shared` scope every workspace imports by, the
+SQLite filename, the `LICENSE` copyright line and this readme. It runs on plain Node with no
+dependencies, so **run it before `npm install`** - renaming the shared package invalidates
+the workspace symlinks an earlier install created.
+
+It is scriptable too, for forks that are set up automatically:
+
+```
+npm run init -- --name "Acme Notes" --author "Acme Inc." --yes
+npm run init -- --name "Acme Notes" --dry-run   # list the files it would touch
+```
+
+Everything it changes is a rename. Deciding what your app actually _is_ starts at
+"Adding a new API domain" below - the bundled `note` and `theme` domains are examples to
+replace, not scaffolding to keep.
+
+<!-- template-only:end -->
 
 ## Project structure
 
