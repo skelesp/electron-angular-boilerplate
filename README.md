@@ -1,18 +1,41 @@
 # Electron + Angular Boilerplate
 
+[![CI](https://github.com/skelesp/electron-angular-boilerplate/actions/workflows/ci.yml/badge.svg)](https://github.com/skelesp/electron-angular-boilerplate/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/skelesp/electron-angular-boilerplate/actions/workflows/codeql.yml/badge.svg)](https://github.com/skelesp/electron-angular-boilerplate/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522-5FA04E?logo=nodedotjs&logoColor=white)](.nvmrc)
+[![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](https://angular.dev)
+[![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)](https://www.electronjs.org)
+
 A desktop app built on Angular, Electron and SQLite: Angular frontend (renderer), Electron
 main process, a SQLite database via TypeORM, and a **shared, runtime-validated API contract**
 between the two (zod schemas double as the source of truth for the TypeScript types, the IPC
 input and output validation, and the payloads of main-process events).
 
+Zoneless Angular, a sandboxed and channel-allowlisted preload bridge, TypeORM migrations that
+actually run inside the asar, GitHub-Releases auto-update, and cross-platform packaging with a
+Playwright suite that runs against the **packaged** app on Windows, macOS and Linux in CI.
+
 <!-- template-only:start -->
+
+## What it looks like
+
+The bundled example: two API domains end to end - `note` (SQLite-backed CRUD plus a
+main → renderer `note.changed` event) and `theme` (no database at all, its store is the OS).
+
+![The example notes screen, in light theme](.github/assets/screenshot.png)
+
+The `/settings` route is lazily loaded and hash-routed, and writes through to Electron's
+`nativeTheme`, so the native window chrome follows the app - not just the CSS.
+
+![The settings route, with the theme override set to dark](.github/assets/screenshot-settings.png)
+
+## Starting a project from this template
 
 This is a **template repository**. Click "Use this template" on GitHub to start a new,
 fully independent project from it - the new repo has no shared history or dependency
 on this one, so upgrading this boilerplate later (Angular, Electron, TypeORM, ...)
 never affects projects already created from it.
-
-## Starting a project from this template
 
 ```
 npm run init
@@ -156,8 +179,9 @@ watcher or a remote service just needs the handler (see `models/theme/theme.hand
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (LTS)
-- npm
+- [Node.js](https://nodejs.org/) 22 or newer — the version in [`.nvmrc`](.nvmrc), and what CI
+  runs. `nvm use` (or `fnm use`) picks it up.
+- npm 10 or newer. Both are declared in the root `package.json`'s `engines`.
 
 ### Getting started
 
@@ -171,15 +195,61 @@ The Electron window loads `http://localhost:4200`.
 
 ### Useful scripts
 
-- `npm run build:shared` / `build:electron-app` / `build:angular-app`
-- `npm run lint` / `npm run lint:fix`
-- `npm run format` / `npm run format:check`
+Run from the repository root.
+
+**Build**
+
+- `npm start` — builds `shared`, then runs its watcher, `ng serve` and Electron together
+- `npm run build` — builds `shared`, `electron-app` and `angular-app` in dependency order, then
+  copies the Angular output into `electron-app/renderer/`
+- `npm run build:shared` / `build:electron-app` / `build:angular-app` — one workspace
+- `npm run clean` — removes every workspace's build output
+
+**Check**
+
+- `npm run lint` / `npm run lint:fix` — ESLint across all workspaces (compiles `shared` first,
+  which a fresh checkout needs before cross-workspace imports resolve)
+- `npm run format` / `npm run format:check` — Prettier over the whole repo
 - `npm run test` — Vitest suites for `shared`, `electron-app` and `angular-app`
 - `npm run test:coverage` — the same suites with coverage reports under each `coverage/`
+- `npm run coverage:summary` — renders those totals as a markdown table
 - `npm run test:e2e` — packages the app and runs the Playwright suite against the **packaged**
   build (slow; also runs in CI on all three platforms)
-- `npm run package` — build an installer under `/release`
+
+**Ship**
+
 - `npm run package:dir` — the packaged app tree without an installer, much faster
+- `npm run package` — a real installer under `/release`
+
+**Per workspace** — `npm --workspace=workspaces/<name> run <script>`:
+
+- `electron-app`: `bundle:preload` (esbuild; see below), `migration:generate` /
+  `migration:run` / `migration:revert`
+- `shared`: `watch` (`tsc --watch`)
+- `angular-app`: `start` (`ng serve`), `watch` (`ng build --watch`)
+
+### The preload script is bundled, not just compiled
+
+`webPreferences.sandbox` is `true`, and a sandboxed preload script can only `require()` Node
+builtins and `electron` — not an arbitrary npm package. So `preload.ts` cannot be shipped as a
+plain `tsc` output: its import of `isValidChannel` from `shared` would fail to resolve at
+runtime, and the whole IPC bridge would silently not exist.
+
+`electron-app`'s `bundle:preload` script (esbuild, `--bundle --platform=node --format=cjs
+--external:electron`) inlines those dependencies into a single `dist/preload.js`. It runs as
+part of both `start` and `compile`, so you never call it by hand — but **if you change how
+`preload.ts` is built, that constraint is what you have to preserve.**
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the setup, the checks CI runs, and the conventions
+worth knowing before a pull request. Commit messages follow
+[Conventional Commits](https://www.conventionalcommits.org/), enforced by a `commit-msg` hook;
+Prettier runs on staged files on `pre-commit`. Both hooks are installed by husky on
+`npm install` — `git commit --no-verify` skips them if you need to.
+
+Also: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [SECURITY.md](SECURITY.md) (report
+vulnerabilities privately, not as an issue), and [CHANGELOG.md](CHANGELOG.md).
 
 ## CI
 
@@ -249,4 +319,4 @@ that CI only partly covers (it packages, but builds no signed installers).
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -1,0 +1,26 @@
+# https://editorconfig.org
+# Keeps editors that don't run Prettier on save (and edits made outside this repo's
+# toolchain, like GitHub's web editor) producing the same bytes Prettier would.
+#
+# `end_of_line` is deliberately not set: git normalizes to LF in the repository and
+# `core.autocrlf` decides the working tree, while Prettier is configured with
+# `endOfLine: "auto"` to follow whatever is already there. Pinning it here would make
+# an editor fight both on a Windows checkout.
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 120
+
+# Markdown uses two trailing spaces as a hard line break.
+[*.md]
+trim_trailing_whitespace = false
+
+# Generated, and large enough that reformatting it would be pure diff noise.
+[package-lock.json]
+insert_final_newline = ignore
+trim_trailing_whitespace = ignore

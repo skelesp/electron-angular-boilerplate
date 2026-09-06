@@ -1,0 +1,6 @@
+# Every pull request gets the repository owner as a reviewer by default.
+# https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# `npm run init` rewrites this handle to the owner of the checkout's `origin` remote, so a
+# project created from this template does not request reviews from the template's author.
+* @skelesp

@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a change to the template.
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repository is a **template**: what it ships is a starting point people copy and
+        then edit. The most useful changes keep dependencies current, remove setup friction,
+        or demonstrate a pattern that isn't demonstrated yet — rather than growing the example
+        `note` and `theme` domains, which exist to be deleted.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is awkward, missing or easy to get wrong today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like instead
+      description: If it adds a dependency or a file to every project made from this template, say why that cost is worth it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including "document it instead of building it" — often the right answer for a template.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I've read the relevant section of `CLAUDE.md` and this isn't already a documented deliberate choice.
+          required: true
+        - label: I searched existing issues.
+          required: true

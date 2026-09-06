@@ -13,6 +13,12 @@ updates:
       interval: weekly
     open-pull-requests-limit: 10
     versioning-strategy: increase
+    # Commit messages here follow Conventional Commits (commitlint runs on a commit-msg hook,
+    # see CONTRIBUTING.md). Dependabot commits are made server-side and so never see that hook -
+    # this is what keeps them in the same vocabulary as everything else in the log.
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
     groups:
       # Angular ships its packages in lockstep; separate PRs per package would each fail
       # peer resolution against the others. Same reasoning for the lint/format toolchain
@@ -57,3 +63,5 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: 'chore(ci)'

@@ -23,8 +23,15 @@ npm start                      # build:shared, then run watch:shared + Angular d
 - `npm run init` — rewrites the template's identity into a consumer's own. See "Initializing a
   copy of the template" below; it is the first thing anyone starting from this repo runs, and
   the only script here meant to be deleted afterwards.
-- `npm run build` — builds `shared`, then `electron-app`, then `angular-app`, in that order (each depends on the previous).
+- `npm run build` — builds `shared`, then `electron-app`, then `angular-app`, in that order
+  (each depends on the previous), and finishes with `copy:renderer`.
 - `npm run build:shared` / `build:electron-app` / `build:angular-app` — build one workspace.
+- `npm run copy:renderer` — runs `workspaces/electron-app/scripts/copy-renderer.mjs`, which
+  copies the Angular browser build into `electron-app/renderer/`. It is the last step of
+  `build` (and so of `prepackage`) rather than only a packaging step: `renderer/` is what a
+  packaged build loads instead of `localhost:4200`, and it is in `build.files`, so a `build`
+  that stopped short of it would leave the previous run's renderer in place — a packaged app
+  showing stale UI with no failure anywhere.
 - `npm run lint` / `npm run lint:fix` — `compile:shared`, then eslint across all workspaces
   (`npm run lint --workspaces --if-present`). The `compile:shared` prefix is load-bearing, not
   a convenience: every other workspace imports `@electron-angular-boilerplate/shared`, whose
@@ -58,7 +65,9 @@ npm start                      # build:shared, then run watch:shared + Angular d
 Per-workspace scripts (run with `npm --workspace=workspaces/<name> run <script>`):
 
 - `shared`: `dev` (`tsc --watch`), `compile`/`build`/`build:prod` (`tsc --build`), `watch`.
-- `electron-app`: `start` (`tsc && electron .`) — expects Angular already serving at `localhost:4200`;
+- `electron-app`: `start` (`tsc && npm run bundle:preload && electron .`) — expects Angular
+  already serving at `localhost:4200`; `compile` (`tsc --build`, then `bundle:preload`);
+  `bundle:preload` (esbuild — see the section below, and don't drop it);
   `migration:generate` / `migration:run` / `migration:revert` for TypeORM migrations.
 - `angular-app`: `start` (`ng serve`), `watch` (`ng build --watch`).
 
@@ -71,22 +80,66 @@ VS Code: the `Electron+Angular debug` launch compound (`.vscode/launch.json`) ru
 stale, rebuild `shared` first — everything else imports from `@electron-angular-boilerplate/shared`'s
 compiled `dist`, not its source.
 
+## The preload script is bundled with esbuild, not emitted by tsc
+
+`dist/preload.js` is the one output in this repo that `tsc` does **not** produce. It is built
+by `electron-app`'s `bundle:preload` script:
+
+```
+esbuild src/preload.ts --bundle --platform=node --format=cjs --sourcemap --external:electron --outfile=dist/preload.js
+```
+
+which runs as part of both `start` and `compile`, so nobody invokes it by hand — and that is
+exactly why it is easy to delete by accident while "simplifying" the build.
+
+The reason it exists is `webPreferences.sandbox: true` (`main.ts`). A sandboxed preload script
+can `require()` only Node builtins and `electron`; it has no module resolution into
+`node_modules`. `preload.ts` imports `isValidChannel` / `isValidEventChannel` from
+`@electron-angular-boilerplate/shared` to allowlist IPC channels, so a plain `tsc`-emitted
+`preload.js` would carry a bare `require('@electron-angular-boilerplate/shared')` that throws
+at load. The failure is quiet in the worst way: the preload dies, `contextBridge` never runs,
+`window.electronAPI` is simply absent, and the renderer reports a missing bridge rather than a
+build error. Bundling inlines those dependencies into one self-contained CommonJS file.
+
+Three consequences worth keeping in mind:
+
+- **`--external:electron` is required**, not an optimization: `electron` is resolved by the
+  runtime and must stay a bare `require`.
+- **`--format=cjs` is pinned explicitly.** Preload scripts are loaded as CommonJS.
+  `electron-app` is already `"type": "commonjs"`, so the flag is redundant today — it is there
+  so that a future switch of that field doesn't silently emit an ESM preload.
+- **Nothing reachable from `preload.ts` may use a Node built-in beyond what a sandboxed
+  preload allows.** That constrains what `shared` is allowed to export — see "Notes" at the
+  bottom of this file. esbuild will happily bundle an `fs` import and the failure appears only
+  at runtime, in a packaged build.
+
+`workspaces/e2e` is what actually catches a regression here, since a broken bridge only shows
+up once the app is packaged and launched.
+
 ## Initializing a copy of the template
 
 `scripts/init.mjs` (`npm run init`) is what turns this repo into someone's own project. It
-prompts for a product name, npm scope, appId, author, description and SQLite filename — or
-takes them as flags (`--name`, `--scope`, `--app-id`, `--author`, `--description`,
-`--database`, plus `--yes`, `--dry-run` and `--force`) — and rewrites all of them in place.
+prompts for a product name, npm scope, appId, author, description, SQLite filename and GitHub
+repository — or takes them as flags (`--name`, `--scope`, `--app-id`, `--author`,
+`--description`, `--database`, `--repo`, plus `--yes`, `--dry-run` and `--force`) — and
+rewrites all of them in place.
 
 The friction it removes is real: `@electron-angular-boilerplate/shared` alone appears in about
 twenty files across three workspaces, the lockfile and this document, and a rename that misses
-one fails at `import`, not at review time. Four substituted tokens — the scope, the product
-name, the appId and the SQLite filename — plus the LICENSE copyright line are the whole of the
-template's identity, and `PLACEHOLDER` at the top of the script is the single source of truth
-for them. Introduce a fifth and it goes there and in `buildSubstitutions()`, rather than into a
-list of things a consumer is told to grep for.
+one fails at `import`, not at review time. Six substituted tokens — the scope, the product
+name, the appId, the SQLite filename, the repository slug and its owner — plus the LICENSE
+copyright line are the whole of the template's identity, and `PLACEHOLDER` at the top of the
+script is the single source of truth for them. Introduce a seventh and it goes there and in
+`buildSubstitutions()`, rather than into a list of things a consumer is told to grep for.
 
-Four properties of it are load-bearing:
+`buildSubstitutions()` returns them **ordered longest-match-first**, because several are
+substrings of others: `skelesp/electron-angular-boilerplate` contains the scope, and `skelesp`
+is a prefix of the slug. Rewriting the bare scope first would leave a half-rewritten URL behind.
+The two repository substitutions are also skipped entirely when the answer is empty (no
+`origin` remote, or a non-GitHub one) — substituting an empty string would delete the owner out
+of every URL rather than leaving the placeholder for a human to fix, so the script warns instead.
+
+Five properties of it are load-bearing:
 
 - **No dependencies, plain Node.** It has to run _before_ `npm install`, because renaming
   `@<scope>/shared` invalidates the workspace symlinks an earlier install created. The readme
@@ -103,15 +156,24 @@ Four properties of it are load-bearing:
   trailing newline) and the readme's `<!-- template-only:start -->` / `<!-- template-only:end -->`
   blocks are stripped along with their trailing blank lines. If you change what init writes,
   re-check that a freshly initialized copy still passes `npm run format:check`.
+- **It matches file names exactly, case included.** `edits` is a map keyed by path, so
+  `planReadmeRewrite` reads and writes `README.md` — the file's real name. On a
+  case-insensitive filesystem a `readme.md` key would pass `existsSync`, sit in the map
+  _alongside_ the walk's `README.md` key, and the two would write the same file twice in Map
+  order, with the token substitutions losing. Same reason `TEXT_FILENAMES` exists next to
+  `TEXT_EXTENSIONS`: `.github/CODEOWNERS` has no extension and would otherwise be skipped,
+  leaving a consumer's pull requests requesting review from this template's author.
 
 The product name is validated against quotes, backslashes, angle brackets and `&` because it is
 substituted verbatim into a single-quoted TypeScript string (`app.component.ts`), an HTML
 `<title>` and raw JSON — contexts with three different escaping rules. Rejecting those few
 characters is proportionate; making the substitution context-aware is not.
 
-`readme.md`'s template-only blocks hold the "Use this template" framing and the init
-instructions themselves. Anything written there that stops being true once the repo is someone
-else's app belongs inside those markers.
+`README.md`'s template-only blocks hold the "Use this template" framing, the init instructions
+themselves, and the screenshots (which are of _this_ template's example app). Anything written
+there that stops being true once the repo is someone else's app belongs inside those markers.
+The images live in `.github/assets/`; init leaves the files alone — nothing references them
+once the block is stripped — and its closing output says so.
 
 ## Architecture: the shared API contract
 
@@ -328,8 +390,12 @@ Three details in the `build` config exist for the release/auto-update path speci
 - **`publish: [{ provider: "github" }]` with no `owner`/`repo`.** electron-builder fills those
   in from the git remote at build time, so a fork built by its own Actions publishes to _its_
   releases, not to this repo's. That is also why there is deliberately no `repository` field in
-  any `package.json` here — it would take precedence and point every fork back at the
-  original. The config's real job is to make electron-builder emit the `latest*.yml` update
+  any `package.json` here — electron-builder reads `devMetadata.repository` (the root manifest)
+  and then `metadata.repository` (the app manifest) _before_ falling back to the git remote, so
+  either one would take precedence and point every fork back at the original. **Do not add one**
+  — not even "for npm metadata". `homepage` and `bugs` are safe and are set, because
+  electron-builder never reads them; `npm run init` rewrites both from the consumer's `origin`.
+  The publish config's real job is to make electron-builder emit the `latest*.yml` update
   metadata and the packaged `app-update.yml`; it does not by itself publish anything.
 - **The app version comes from `workspaces/electron-app/package.json`**, because that is what
   `directories.app` points at — _not_ from the root `package.json` (which stays at `0.0.0`).
@@ -625,6 +691,42 @@ To remove auto-update instead: delete `updater.ts`, its spec and the `initialize
 call in `main.ts`, and drop `electron-updater` from `electron-app`'s dependencies. Leave
 `build.publish` in place if you still want `latest*.yml` generated for a manual update flow.
 
+## Repository conventions and hooks
+
+The files that make this look like a maintained repository rather than a folder of code, and
+which a consumer inherits along with everything else.
+
+- **`.editorconfig`, `.nvmrc` (Node 22) and `engines` in the root `package.json`.** The Node
+  version is stated in all three places on purpose: `.nvmrc` for `nvm use`, `engines` so npm
+  warns on a mismatch, and `node-version: 22` in the workflows. They have to be changed
+  together. `.editorconfig` deliberately does **not** set `end_of_line` — git's `core.autocrlf`
+  owns the working tree and Prettier is on `endOfLine: "auto"` to follow whatever it finds, so
+  pinning it would make an editor fight both on a Windows checkout.
+- **husky + lint-staged + commitlint** (`prepare: husky`, `.husky/`, `commitlint.config.mjs`).
+  Two hooks: `pre-commit` runs lint-staged, `commit-msg` runs commitlint.
+  - lint-staged runs **Prettier only**, not ESLint, and that is deliberate. ESLint's flat config
+    resolves from the working directory, and the real rules live in each workspace's own
+    `eslint.config.mjs` (Angular rules, the type-aware `projectService`); an `eslint` invoked
+    from the repo root against a staged workspace file would silently apply the weaker root
+    base config and report a misleading pass. Full linting stays in `npm run lint` and in CI.
+  - commitlint's `scope-enum` is the workspaces plus a handful of cross-cutting scopes, and
+    includes `deps`/`deps-dev`/`ci` because that is what `.github/dependabot.yml`'s
+    `commit-message.prefix` is configured to emit. Change one and change the other.
+  - `subject-case` is switched off for the same reason: Dependabot writes sentence-cased
+    subjects, and a rule that fails every automated PR gets disabled a week later anyway.
+  - Both hooks are skippable with `git commit --no-verify`, and the whole thing is removable by
+    deleting `.husky/`, `commitlint.config.mjs`, the `prepare` script, the `lint-staged` block
+    and those four devDependencies.
+- **Community health files** — `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+  `CHANGELOG.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md` and
+  `.github/ISSUE_TEMPLATE/`. All of them name the repository or its owner, so all of them are
+  covered by init's substitutions — see "Initializing a copy of the template" above. The one
+  that needs a human decision is `SECURITY.md`: it routes reports to GitHub's private
+  vulnerability reporting, which a repository owner has to **enable** in Settings → Security
+  before that link works.
+- **`README.md`, capitalized**, and `planReadmeRewrite` matches that name exactly. See the
+  init section for why the case matters more than convention here.
+
 ## Dependencies
 
 Staying current is most of a boilerplate's value, so `.github/dependabot.yml` runs Dependabot
@@ -692,7 +794,9 @@ a developer's local setup or a debugging affordance to end users; don't "simplif
   `electron-app/src/main.ts` — the standard secure Electron `webPreferences` combination.
   `preload.ts` only uses `contextBridge`/`ipcRenderer` plus pure-TS validation from `shared`,
   which all work under a sandboxed preload; keep it that way (no `fs`/other Node built-ins in
-  preload or in anything `shared` exports) if you don't want to revisit this.
+  preload or in anything `shared` exports) if you don't want to revisit this. That import from
+  `shared` is also why `dist/preload.js` is an esbuild bundle rather than a `tsc` output — see
+  "The preload script is bundled with esbuild, not emitted by tsc" above.
 - The SQLite file path is resolved relative to `__dirname` (not `process.cwd()`), so it works
   regardless of the process's working directory: dev uses `electron-app/data/boilerplate.sqlite`,
   packaged builds use `app.getPath('userData')`. Reached through `getDataSource()`, which

@@ -17,7 +17,7 @@
 //   npm run init -- --name "Acme Notes" --yes      non-interactive (scripted forks, CI)
 //   npm run init -- --name "Acme Notes" --dry-run  report what would change, write nothing
 //
-// Flags: --name, --scope, --app-id, --author, --description, --database, --yes, --dry-run,
+// Flags: --name, --scope, --app-id, --author, --description, --database, --repo, --yes, --dry-run,
 //        --force (re-run against an already-initialized checkout), --help.
 
 import { execFileSync } from 'node:child_process';
@@ -41,6 +41,12 @@ const PLACEHOLDER = {
   productName: 'Electron Angular Boilerplate',
   appId: 'com.electronangularboilerplate.app',
   databaseFile: 'boilerplate.sqlite',
+  // The GitHub repository this template lives in, and its owner. These appear in the readme's
+  // badges, the homepage/bugs links in package.json, CODEOWNERS, SECURITY.md and the issue
+  // templates - all of which would otherwise point a consumer's project at *this* repo, which
+  // is worse than pointing nowhere: a green badge for someone else's CI runs.
+  repositorySlug: 'skelesp/electron-angular-boilerplate',
+  repositoryOwner: 'skelesp',
   licenseHolder: /^Copyright \(c\) .*$/m,
 };
 
@@ -79,6 +85,11 @@ const TEXT_EXTENSIONS = new Set([
   '.yml',
 ]);
 
+// Extension-less files that still carry the template's identity. `.github/CODEOWNERS` names the
+// repository owner, and an extension-based allowlist alone would silently leave a consumer's
+// pull requests requesting review from this template's author.
+const TEXT_FILENAMES = new Set(['CODEOWNERS']);
+
 // Blocks of the readme that only make sense while the repo *is* the template. Stripped on init
 // rather than hand-deleted, so the readme a consumer keeps is about their app. The trailing
 // blank lines are part of the match: leaving them behind would hand a freshly initialized
@@ -87,7 +98,7 @@ const TEMPLATE_ONLY_BLOCK =
   /^[ \t]*<!-- template-only:start -->[\s\S]*?<!-- template-only:end -->[ \t]*\r?\n(?:[ \t]*\r?\n)*/gm;
 
 const BOOLEAN_FLAGS = ['yes', 'dry-run', 'force', 'help'];
-const VALUE_FLAGS = ['name', 'scope', 'app-id', 'author', 'description', 'database'];
+const VALUE_FLAGS = ['name', 'scope', 'app-id', 'author', 'description', 'database', 'repo'];
 
 const USAGE = `Rewrites this template's name, npm scope, appId and license into your own.
 
@@ -101,6 +112,7 @@ const USAGE = `Rewrites this template's name, npm scope, appId and license into 
   --author <name>       package.json author and LICENSE copyright holder
   --description <text>  package.json description
   --database <file>     SQLite filename (default: <scope>.sqlite)
+  --repo <owner/name>   GitHub repository for badges and links (default: the origin remote)
   --yes                 skip the confirmation prompt
   --dry-run             report what would change without writing
   --force               run again on an already-initialized checkout
@@ -160,6 +172,21 @@ function gitConfiguredAuthor() {
   }
 }
 
+// A repo made with "Use this template" already has its own `origin` before anyone runs this
+// script, so the remote is a better default than any prompt - and the only one that is right
+// without being told. Both URL forms GitHub hands out are accepted; anything else (no remote,
+// a non-GitHub host, a bare local clone) falls back to an empty default and the placeholder is
+// left in place with a warning, which is the honest outcome.
+function gitOriginRepositorySlug() {
+  try {
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: repoRoot, encoding: 'utf8' }).trim();
+    const match = /^(?:https?:\/\/[^/]+\/|git@[^:]+:|ssh:\/\/git@[^/]+\/)([^/]+\/[^/]+?)(?:\.git)?$/.exec(url);
+    return match ? match[1] : '';
+  } catch {
+    return '';
+  }
+}
+
 // npm's own package-name rules, minus the ones a scope cannot hit anyway. Checked here because
 // a bad scope surfaces as an `npm install` failure a dozen files later, with no hint that this
 // script is what wrote it.
@@ -194,6 +221,15 @@ function validateDatabaseFile(file) {
   return null;
 }
 
+// GitHub's own rules for an owner and a repository name. Substituted into URLs, a CODEOWNERS
+// entry and package.json, so a stray space or slash would break all three at once.
+function validateRepositorySlug(slug) {
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\/[A-Za-z0-9._-]{1,100}$/.test(slug)) {
+    return 'must be "owner/name", for example acme/acme-notes';
+  }
+  return null;
+}
+
 function* walk(dir) {
   const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -202,7 +238,11 @@ function* walk(dir) {
 
     if (entry.isDirectory()) {
       if (!SKIP_DIRECTORIES.has(entry.name)) yield* walk(path);
-    } else if (entry.isFile() && TEXT_EXTENSIONS.has(extname(entry.name)) && path !== selfPath) {
+    } else if (
+      entry.isFile() &&
+      (TEXT_EXTENSIONS.has(extname(entry.name)) || TEXT_FILENAMES.has(entry.name)) &&
+      path !== selfPath
+    ) {
       yield path;
     }
   }
@@ -211,13 +251,36 @@ function* walk(dir) {
 // Ordered longest-match-first so a scope that differs from the package name cannot leave a
 // half-rewritten identifier behind: "@<scope>/shared" contains the bare scope.
 function buildSubstitutions(answers) {
+  // An unanswered repository (no origin remote, or a non-GitHub one) leaves the placeholder
+  // alone rather than substituting an empty string, which would silently delete the owner out
+  // of every URL it appears in.
+  const repository = answers.repositorySlug
+    ? [
+        // First, before anything that could rewrite half of it: the slug contains the scope.
+        [PLACEHOLDER.repositorySlug, answers.repositorySlug],
+      ]
+    : [];
+  const repositoryOwner = answers.repositorySlug
+    ? [
+        // Last: mentions of the owner on its own that the slug pass didn't cover - the
+        // CODEOWNERS handle, and the profile links in CODE_OF_CONDUCT.md.
+        [PLACEHOLDER.repositoryOwner, repositoryOwnerOf(answers.repositorySlug)],
+      ]
+    : [];
+
   return [
+    ...repository,
     [`@${PLACEHOLDER.scope}/`, `@${answers.scope}/`],
     [PLACEHOLDER.appId, answers.appId],
     [PLACEHOLDER.productName, answers.productName],
     [PLACEHOLDER.databaseFile, answers.databaseFile],
     [PLACEHOLDER.scope, answers.scope],
+    ...repositoryOwner,
   ];
+}
+
+function repositoryOwnerOf(slug) {
+  return slug.split('/')[0];
 }
 
 function countPlaceholders() {
@@ -284,21 +347,30 @@ function planLicenseRewrite(answers, edits, warnings) {
   }
 
   const original = readFileSync(path, 'utf8');
+
+  // Tested against the source rather than inferred from "the replace changed nothing", because
+  // those are two different outcomes: a LICENSE whose copyright line already names this author
+  // in this year is *correct*, and reporting it as a file with no copyright line sent anyone
+  // re-running init - or initializing a fork of an already-initialized project - to go check a
+  // file that needs nothing.
+  if (!PLACEHOLDER.licenseHolder.test(original)) {
+    warnings.push('LICENSE has no "Copyright (c) ..." line to rewrite - check it by hand.');
+    return;
+  }
+
   const updated = original.replace(
     PLACEHOLDER.licenseHolder,
     `Copyright (c) ${new Date().getFullYear()} ${answers.author}`
   );
 
-  if (updated === original) {
-    warnings.push('LICENSE has no "Copyright (c) ..." line to rewrite - check it by hand.');
-    return;
-  }
-
-  edits.set(path, updated);
+  if (updated !== original) edits.set(path, updated);
 }
 
 function planReadmeRewrite(answers, edits) {
-  const path = join(repoRoot, 'readme.md');
+  // Must match the file's real name, not just a case-insensitive hit on it: `edits` is keyed by
+  // path, so a "readme.md" key here would sit alongside the walk's "README.md" key and the two
+  // would write the same file twice, in Map order, with the token pass losing.
+  const path = join(repoRoot, 'README.md');
   if (!existsSync(path)) return;
 
   const original = edits.get(path) ?? readFileSync(path, 'utf8');
@@ -380,6 +452,12 @@ async function promptAnswers(flags) {
       required: true,
     });
 
+    const repositorySlug = await ask('GitHub repository (owner/name)', {
+      flag: 'repo',
+      fallback: gitOriginRepositorySlug(),
+      validate: validateRepositorySlug,
+    });
+
     const answers = {
       productName: productName.trim(),
       scope,
@@ -387,6 +465,7 @@ async function promptAnswers(flags) {
       author: author.trim(),
       description: description.trim(),
       databaseFile,
+      repositorySlug: repositorySlug.trim(),
     };
 
     // Printed on every run, not just interactive ones: a non-interactive run takes defaults for
@@ -401,6 +480,7 @@ async function promptAnswers(flags) {
         `  Author          ${answers.author || '(left unchanged)'}`,
         `  Description     ${answers.description}`,
         `  SQLite file     ${answers.databaseFile}`,
+        `  Repository      ${answers.repositorySlug || '(left unchanged)'}`,
         '',
       ].join('\n')
     );
@@ -435,6 +515,12 @@ async function main() {
 
   const edits = new Map();
   const warnings = [];
+  if (answers.repositorySlug.length === 0) {
+    warnings.push(
+      'Repository left unchanged - no GitHub "origin" remote to read it from. Fix the badges in ' +
+        'README.md, the homepage/bugs links in package.json and the handle in .github/CODEOWNERS by hand.'
+    );
+  }
   planTokenRewrites(answers, edits);
   planJsonRewrites(answers, edits);
   planLicenseRewrite(answers, edits, warnings);
@@ -471,8 +557,10 @@ async function main() {
       `  npm install${relink}`,
       '  npm start',
       '',
-      'Then review readme.md, and delete scripts/init.mjs along with the "init" script in',
-      'package.json once you no longer need them.',
+      "Then review README.md. The section that showed screenshots of the template's own example",
+      'app is gone, so .github/assets/ is now unreferenced - delete it, or put your own shots',
+      'there. Delete scripts/init.mjs and the "init" script in package.json when you no longer',
+      'need them.',
       '',
     ].join('\n')
   );
