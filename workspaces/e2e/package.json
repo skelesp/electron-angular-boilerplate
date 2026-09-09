@@ -9,7 +9,7 @@
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0",
+    "@playwright/test": "^1.63.0",
     "typescript": "~6.0.3"
   }
 }
