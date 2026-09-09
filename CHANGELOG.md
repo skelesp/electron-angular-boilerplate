@@ -32,6 +32,11 @@ entries below can be assembled from `git log` — see [CONTRIBUTING.md](CONTRIBU
 
 ### Changed
 
+- The `window-all-closed` handler no longer clears the session cache. It fired a floating
+  `clearCache()` immediately before `app.quit()`, so it usually never resolved, and there was
+  nothing worth clearing either way: dev loads over `localhost` and a packaged build loads over
+  `file://`. The platform check that keeps the app alive on macOS is unchanged.
+
 - Source maps are no longer emitted by production Angular builds. `sourceMap` moved out of
   `angular.json`'s shared `options` block into the `development` configuration, where Angular
   puts it by default. It was shipping 4 MB of `.map` files inside `app.asar` — two thirds of the

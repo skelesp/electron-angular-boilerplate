@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, session } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import { initializeDatabase } from './database/sqlite.config';
 import { registerAllHandlers } from './handlersRegistry';
 import { projectPaths } from './config/project';
@@ -139,9 +139,6 @@ if (!isPrimaryInstance) {
   });
 
   app.on('window-all-closed', function () {
-    session.defaultSession.clearCache().then(() => {
-      getLogger().debug('Cache cleared');
-    });
     if (process.platform !== 'darwin') app.quit();
   });
 
