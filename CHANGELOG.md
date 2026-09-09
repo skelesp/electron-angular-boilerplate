@@ -16,6 +16,12 @@ entries below can be assembled from `git log` — see [CONTRIBUTING.md](CONTRIBU
 
 ### Added
 
+- A `<mat-icon>` on each note's delete button — the first one in the example UI. Material Icons
+  was bundled for `<mat-icon>`'s sake but nothing rendered one, so a build that dropped or
+  mis-subset the font looked perfectly fine. The e2e note-flow spec now measures the glyph's
+  advance width in the packaged app, which is the only place a missing font file, a broken
+  `@font-face` or a CSP that refused it actually shows up.
+
 - `.editorconfig`, `.nvmrc` and an `engines` field, so editors and installs agree on Node 22
   and on the formatting Prettier would produce.
 - Community health files: `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and

@@ -79,6 +79,18 @@ describe('NotesComponent', () => {
     expect(invoke).toHaveBeenCalledWith(apiRegistry.note.delete.channel, { id: note.id });
   });
 
+  // jsdom loads no fonts, so whether the glyph rasterizes is the e2e suite's job (see
+  // e2e/note-flow.spec.ts). What is checkable here is the part that makes an icon-only button
+  // usable at all: the icon carries no accessible name of its own, so the button's has to come
+  // from aria-label, and it has to name which note it deletes.
+  it('labels the icon-only delete button with the note it targets', () => {
+    const button = fixture.nativeElement.querySelector('.note button.delete') as HTMLButtonElement;
+
+    expect(button.getAttribute('aria-label')).toBe('Delete Groceries');
+    expect(button.querySelector('mat-icon')?.textContent?.trim()).toBe('delete');
+    expect(button.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('shows the empty state when there are no notes', async () => {
     invoke.mockResolvedValue({ status: 'success', data: [], meta: { totalItems: 0 } });
     component.noteService.reload();
