@@ -58,6 +58,13 @@ updates:
         update-types: [version-update:semver-major]
       - dependency-name: better-sqlite3
         update-types: [version-update:semver-major]
+      # Angular supports exactly one TypeScript minor at a time: @angular/compiler-cli pins
+      # `peerDependencies.typescript` to a `>=x.y <x.y+1` window, and its compiler refuses to
+      # build outside it, so a TypeScript major cannot be merged until Angular ships support for
+      # it - and typescript is not in the `angular` group above, so when that happens it is
+      # bumped by hand alongside the Angular upgrade. See "Dependencies" in CLAUDE.md.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

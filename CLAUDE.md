@@ -752,7 +752,7 @@ platforms, which covers most of that ground, but it builds with `--dir` and does
 so a real `npm run package` and a look at a tagged release build are still worth doing for an
 ABI-moving major.
 
-Two version choices deviate from what a resolver would pick on its own, both on purpose:
+Three version choices deviate from what a resolver would pick on its own, all on purpose:
 
 - `better-sqlite3` is on **13.x** while TypeORM 1.1.1 declares a `^12.0.0` optional peer. v13 is
   the release that moved to N-API with in-tarball prebuilds, which is the entire reason the
@@ -766,6 +766,15 @@ Two version choices deviate from what a resolver would pick on its own, both on 
   `@angular/build:unit-test` builder runs fine on vitest 5 (all three workspaces' suites pass);
   the peer range simply hasn't been widened upstream. This is what makes the `.npmrc` workaround
   above still necessary — see "Testing".
+- `typescript` is held at **6.0.x** (`~6.0.3`) even though 7.x is released and `npm outdated`
+  reports it, because `@angular/compiler-cli` declares `peerDependencies.typescript` as
+  `>=6.0 <6.1`. Angular supports one TypeScript minor at a time and its compiler refuses to
+  build outside that range, so TypeScript 7 is not a bump that can be merged here — the pin is
+  the Angular peer, not caution. Check the current range with
+  `node -e "console.log(require('./node_modules/@angular/compiler-cli/package.json').peerDependencies.typescript)"`
+  and revisit when Angular widens it; `.github/dependabot.yml` ignores typescript majors so it
+  stops proposing the bump in the meantime. The version is pinned in three manifests — the root,
+  `angular-app` and `e2e` — and they move together.
 
 ## Main-process lifecycle
 
