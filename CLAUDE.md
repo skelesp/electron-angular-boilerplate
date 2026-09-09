@@ -878,3 +878,13 @@ a developer's local setup or a debugging affordance to end users; don't "simplif
   packaged CSP stay `'self'`-only. `@fontsource/material-icons` ships only the `@font-face`, so
   `styles.css` also carries the `.material-icons` ligature rules Google's stylesheet supplied —
   without them `<mat-icon>` renders its name as text.
+- Roboto is imported by its `latin-<weight>.css` entrypoints, not the bare `<weight>.css` ones.
+  The bare entrypoints declare a @font-face per unicode subset — nine of them — so three weights
+  emitted 54 font files (941 kB) into `dist/angular-app/browser/media`, against 8 files (413 kB)
+  now. On the web that costs nothing, since a browser downloads only the subsets a page's text
+  needs; here electron-builder packs the whole `renderer/` directory into the installer either
+  way, so an unused subset is pure weight. The trade is that non-latin text falls back to a
+  system font — the `latin-` files carry no `unicode-range`, so the fallback happens per
+  character against the `font-family` stack. A consumer localizing into Cyrillic or Greek adds
+  those subsets back per weight; `styles.css` says how. `@fontsource/material-icons` has no
+  equivalent choice: it ships one latin face and `index.css` is already it.

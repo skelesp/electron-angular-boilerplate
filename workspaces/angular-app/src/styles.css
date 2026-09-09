@@ -5,10 +5,28 @@
  * ligature font for <mat-icon>. These ship inside the app instead of being fetched from
  * Google's CDN at startup, so the app renders identically offline and the packaged
  * Content-Security-Policy needs no external style-src/font-src origins.
+ *
+ * Roboto is imported as its `latin-` subset rather than the full family. @fontsource's bare
+ * `<weight>.css` entrypoints declare one @font-face per unicode subset - cyrillic,
+ * cyrillic-ext, greek, greek-ext, math, symbols, vietnamese, latin-ext and latin - so three
+ * weights alone pulled 54 font files (~940 kB of woff/woff2) into the build output, for
+ * scripts this app never renders. A browser only downloads the subsets a page's text
+ * actually needs, so the cost is invisible on the web; electron-builder packs whatever is in
+ * `renderer/`, so here every unused subset ships in the installer unconditionally.
+ *
+ * To render non-latin text, add the subsets you need back per weight -
+ * `@import '@fontsource/roboto/cyrillic-400.css';` and so on - or go back to the bare
+ * `400.css` entrypoints to take all of them at once. Note the `latin-` files carry no
+ * `unicode-range` descriptor, so a character Roboto's latin subset lacks falls through to
+ * the next family in the `font-family` stack below rather than to another Roboto face.
+ *
+ * @fontsource/material-icons is not subset the same way: it ships a single latin face
+ * (`index.css` and `latin-400.css` are byte-identical and `files/` holds only that one
+ * font), so there is nothing to trim and the package's own entrypoint stays.
  */
-@import '@fontsource/roboto/300.css';
-@import '@fontsource/roboto/400.css';
-@import '@fontsource/roboto/500.css';
+@import '@fontsource/roboto/latin-300.css';
+@import '@fontsource/roboto/latin-400.css';
+@import '@fontsource/roboto/latin-500.css';
 @import '@fontsource/material-icons/index.css';
 
 /*
