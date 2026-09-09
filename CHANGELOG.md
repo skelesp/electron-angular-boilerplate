@@ -42,6 +42,15 @@ entries below can be assembled from `git log` — see [CONTRIBUTING.md](CONTRIBU
   puts it by default. It was shipping 4 MB of `.map` files inside `app.asar` — two thirds of the
   packaged renderer — along with a readable copy of the renderer's TypeScript.
 
+- The production bundle budgets are sized for a desktop renderer: the `initial` budget goes
+  from Angular's web defaults (500kB warning / 1MB error) to 1.5MB / 3MB. The initial bundle
+  measures ~861 kB, of which ~700 kB is the Angular + Material framework floor, so every build
+  printed a budget warning and a consumer was ~140 kB from a hard failure for adding a feature.
+  The defaults price in a download over mobile data and a cold HTTP cache, neither of which
+  exists when the renderer is read from local disk inside `app.asar`. The limits stay finite —
+  parse time and memory are still worth guarding — and `anyComponentStyle` is unchanged.
+  `angular.json` carries the reasoning as a comment.
+
 - `readme.md` is now `README.md`, with CI/CodeQL/license/version badges, screenshots of the
   example app, and a scripts section listing the full set rather than a third of it.
 - CLAUDE.md's script reference matches the scripts again: `npm run build` includes

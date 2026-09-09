@@ -29,10 +29,26 @@
           "configurations": {
             "production": {
               "budgets": [
+                // The initial budget is deliberately far above Angular's web defaults
+                // (500kB warning / 1MB error). Those defaults price in a cost this app
+                // never pays: a packaged renderer is loaded from local disk inside
+                // app.asar, so there is no download over mobile data, no cold cache to
+                // miss and no transfer size to bill anyone for. What a budget is still
+                // worth guarding on the desktop is unbounded growth in parse time and
+                // memory - which is why these are raised rather than removed.
+                //
+                // Sizing, measured from a real production build: ~861 kB initial total,
+                // of which ~700 kB is the Angular + Material framework floor that every
+                // app built from this template pays, ~23 kB is styles, and only ~143 kB
+                // is this template's own code. 1.5MB leaves room for several times that
+                // application code before a consumer is warned about something they
+                // actually did; 3MB is where something has genuinely gone wrong.
+                // Re-measure before raising these again - a budget moved to silence a
+                // warning has stopped being a budget.
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "1.5MB",
+                  "maximumError": "3MB"
                 },
                 {
                   "type": "anyComponentStyle",
