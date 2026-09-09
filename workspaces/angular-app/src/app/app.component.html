@@ -1,8 +1,24 @@
-<mat-toolbar class="sticky-header">
+<mat-toolbar class="sticky-header" role="banner">
   <h1>{{ appName }}</h1>
-  <nav>
-    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Notes</a>
-    <a routerLink="/settings" routerLinkActive="active">Settings</a>
+  <!-- Landmarks are the desktop equivalent of a page's chrome: banner / navigation / main /
+       contentinfo are what a screen reader user jumps between, and <mat-toolbar> renders a
+       plain div with no role of its own. -->
+  <nav aria-label="Main">
+    <a
+      routerLink="/"
+      routerLinkActive="active"
+      #notesLink="routerLinkActive"
+      [routerLinkActiveOptions]="{ exact: true }"
+      [attr.aria-current]="notesLink.isActive ? 'page' : null"
+      >Notes</a
+    >
+    <a
+      routerLink="/settings"
+      routerLinkActive="active"
+      #settingsLink="routerLinkActive"
+      [attr.aria-current]="settingsLink.isActive ? 'page' : null"
+      >Settings</a
+    >
   </nav>
 </mat-toolbar>
 
@@ -10,6 +26,6 @@
   <router-outlet></router-outlet>
 </main>
 
-<mat-toolbar class="sticky-footer">
+<mat-toolbar class="sticky-footer" role="contentinfo">
   <p>&copy; {{ appName }}. All rights reserved.</p>
 </mat-toolbar>

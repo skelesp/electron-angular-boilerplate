@@ -18,8 +18,17 @@ export default tseslint.config(
     },
   },
   {
+    // `processInlineTemplates` above is what routes the `template:` strings in
+    // notes.component.ts / settings.component.ts through this block too, so these rules
+    // cover inline and templateUrl markup alike.
     files: ['**/*.html'],
-    extends: [...angularConfigs.templateRecommended],
-    rules: {},
+    extends: [...angularConfigs.templateRecommended, ...angularConfigs.templateAccessibility],
+    rules: {
+      // Not part of templateAccessibility (it isn't strictly an a11y rule), but it belongs
+      // with them: a <button> with no type defaults to submit, so the first time someone
+      // wraps controls in a <form> - as the note composer does - an unrelated button starts
+      // submitting it. Cheap to state, invisible to debug.
+      '@angular-eslint/template/button-has-type': 'error',
+    },
   }
 );

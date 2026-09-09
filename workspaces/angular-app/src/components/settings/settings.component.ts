@@ -12,15 +12,30 @@ import { ThemeService } from '../../services/theme.service';
   template: `<div class="settings">
     <h2>Appearance</h2>
 
-    <div class="sources">
+    <!--
+      The selected source is conveyed by an outline, which only exists for people who can see
+      it. The aria-pressed attribute is the semantic half of the same statement, and the
+      group wrapper is what stops the three buttons reading as unrelated controls.
+    -->
+    <div class="sources" role="group" aria-label="Theme source">
       @for (option of sources; track option) {
-        <button type="button" [class.selected]="themeService.source() === option" (click)="select(option)">
+        <button
+          type="button"
+          [class.selected]="themeService.source() === option"
+          [attr.aria-pressed]="themeService.source() === option"
+          (click)="select(option)"
+        >
           {{ option }}
         </button>
       }
     </div>
 
-    <p class="status">
+    <!--
+      aria-live because this paragraph is the one thing on screen that can change without
+      anybody here touching anything: flipping the OS dark-mode switch arrives as a
+      theme.changed push from the main process.
+    -->
+    <p class="status" aria-live="polite">
       Following {{ themeService.source() === 'system' ? 'your operating system' : 'this override' }}: currently painting
       {{ themeService.isDark() ? 'dark' : 'light' }}. Flip your OS dark-mode setting with 'system' selected and this
       updates without a reload - the main process pushes the change.
