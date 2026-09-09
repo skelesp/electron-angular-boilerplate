@@ -384,6 +384,9 @@ to.
   `"sourceMap": { "scripts": true, "hidden": true }` to the `production` configuration rather
   than moving it back up: `hidden` emits the maps without a `sourceMappingURL` referencing them,
   which keeps the decision to ship or upload them separate from the decision to generate them.
+  The main process reaches the same outcome by a different route — it keeps generating maps and
+  filters them out at packaging time instead — see "Source maps stop at the package boundary"
+  under "Packaging".
 
 ## Packaging
 
@@ -416,6 +419,52 @@ Three details in the `build` config exist for the release/auto-update path speci
 Note that `--dir` builds produce **no** `latest*.yml` and no `app-update.yml`: electron-builder
 only writes update metadata for real installer targets. That is expected, and `updater.ts`
 detects it rather than erroring — see "Auto-update".
+
+### Source maps stop at the package boundary
+
+`build.files` carries two negations immediately after `"dist/**/*"`:
+
+```
+"!dist/**/*.map",
+"!node_modules/@electron-angular-boilerplate/shared/**/*.map",
+```
+
+The root `tsconfig.json` still sets `"sourceMap": true` and the preload bundle is still built
+with esbuild's `--sourcemap`, so every map a debugger wants is on disk in
+`workspaces/electron-app/dist/` — the VS Code launch compound and its `"sourceMaps": true`
+attach configurations are unaffected. They simply don't get copied into `app.asar`. It is
+~1.7 MB of the compiled main process's 2.7 MB, and, like the renderer's maps before commit
+8b30de8, a readable copy of the app's TypeScript for anyone who runs `npx asar extract`.
+
+The second negation is not redundant: `files` patterns are relative to `directories.app`, so
+`dist/**/*.map` matches `electron-app/dist/` only, and the `shared` package that `prepackage`
+vendors into `electron-app/node_modules/` (see `vendor-shared.mjs` above) arrives with 13 maps
+of its own. It is 34 KB rather than 1.7 MB, but it is the same first-party TypeScript — the
+whole IPC contract — so it goes the same way. `files` negations do apply to `node_modules`
+content, which is what makes one mechanism enough; `vendor-shared.mjs` copies `dist` wholesale
+and stays out of this. The scope in that path is a template placeholder like any other, and
+`npm run init` rewrites it (`PLACEHOLDER.scope`) — if you change it by hand, change it here too.
+
+The argument for shipping them is that `electron-log` writes main-process stack traces to a log
+file a user can send to a maintainer, and unmapped traces point into compiled JS — a real
+consumer the renderer never had. It does not survive contact with the runtime: **Node does not
+apply source maps unless asked, and Electron does not ask.** `process.sourceMapsEnabled` is
+`false` in the main process (no `--enable-source-maps`, no `source-map-support` in
+`electron-app`'s dependencies), so those log files already carry `dist/**/*.js` frames whether
+or not the maps sit beside them. Shipping them bought nothing and disclosed the source.
+
+Turning symbolicated traces on is therefore a **two-part** opt-in, and half of it is not enough:
+
+1. Call `process.setSourceMapsEnabled(true)` early in `main.ts` — before the modules you want
+   symbolicated are required, since V8 only consults maps for frames it resolves afterwards.
+2. Drop both negation lines, so the maps the runtime now reads are actually in the archive.
+
+Do (1) alone and it reads maps that aren't there; do (2) alone — the state before this
+change — and it ships maps nothing reads. If you do both, treat the packaged TypeScript as
+published: that is the same trade the renderer's `hidden` maps let you decline.
+
+Third-party maps are deliberately left alone: TypeORM and electron-updater ship ~1,045 of them
+inside their own packages, and they disclose nothing that isn't already on npm.
 
 `build.npmRebuild` is `false`, which is deliberate. The only native production dependency is
 `better-sqlite3`, and since v13 it is an **N-API** addon shipping prebuilt binaries inside its

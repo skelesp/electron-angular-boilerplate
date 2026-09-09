@@ -42,6 +42,16 @@ entries below can be assembled from `git log` — see [CONTRIBUTING.md](CONTRIBU
   puts it by default. It was shipping 4 MB of `.map` files inside `app.asar` — two thirds of the
   packaged renderer — along with a readable copy of the renderer's TypeScript.
 
+- The main process's source maps stop at the package boundary too. `build.files` gained
+  `!dist/**/*.map` and a matching negation for the `shared` package that `prepackage` vendors
+  into `electron-app/node_modules/`, dropping 33 `.map` files (1.7 MB) from `app.asar`. They
+  are still generated — `tsconfig.json` keeps `"sourceMap": true` and the preload bundle keeps
+  esbuild's `--sourcemap` — so local debugging and the VS Code launch configurations are
+  unchanged. The case for shipping them was symbolicating the stack traces `electron-log`
+  writes for users, but `process.sourceMapsEnabled` is `false` in Electron's main process and
+  nothing here turns it on, so those traces already pointed into `dist/**/*.js`. CLAUDE.md
+  documents the two-part opt-in for consumers who want them symbolicated.
+
 - The production bundle budgets are sized for a desktop renderer: the `initial` budget goes
   from Angular's web defaults (500kB warning / 1MB error) to 1.5MB / 3MB. The initial bundle
   measures ~861 kB, of which ~700 kB is the Angular + Material framework floor, so every build

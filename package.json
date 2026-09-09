@@ -81,6 +81,8 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/**/*.map",
+      "!node_modules/@electron-angular-boilerplate/shared/**/*.map",
       "renderer/**/*",
       "package.json"
     ],
