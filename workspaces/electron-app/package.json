@@ -24,7 +24,7 @@
   "devDependencies": {
     "@types/node": "^26.4.1",
     "@vitest/coverage-v8": "^5.0.0",
-    "electron": "44.1.1",
+    "electron": "44.2.0",
     "esbuild": "^0.28.2",
     "eslint-import-resolver-typescript": "^4.4.5",
     "ts-node": "^10.9.2",
