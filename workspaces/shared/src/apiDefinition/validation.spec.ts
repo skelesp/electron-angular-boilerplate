@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { getEndpointSchemas, getEventSchema, isValidChannel, isValidEventChannel } from './validation';
-import { noteEndpoints } from './note/endpoints';
-import { noteEvents } from './note/events';
+import { getEndpointSchemas, getEventSchema, isValidChannel, isValidEventChannel } from './validation.js';
+import { noteEndpoints } from './note/endpoints.js';
+import { noteEvents } from './note/events.js';
 
 describe('isValidChannel', () => {
   it('returns true for a channel registered in the api registry', () => {

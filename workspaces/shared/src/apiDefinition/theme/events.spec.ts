@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { themeEvents } from './events';
-import { ThemeStateSchema } from './types';
+import { themeEvents } from './events.js';
+import { ThemeStateSchema } from './types.js';
 
 describe('theme events', () => {
   it('names its channel under the domain prefix', () => {

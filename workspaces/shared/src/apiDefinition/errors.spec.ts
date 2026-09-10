@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ApiError, ApiErrorCode, apiErrorCodeSchema } from './errors';
-import { apiResponseSchema } from './types';
+import { ApiError, ApiErrorCode, apiErrorCodeSchema } from './errors.js';
+import { apiResponseSchema } from './types.js';
 import { z } from 'zod';
 
 describe('apiErrorCodeSchema', () => {

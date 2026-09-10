@@ -1,5 +1,5 @@
-import { InferEvents } from '../types';
-import { ThemeStateSchema } from './types';
+import { InferEvents } from '../types.js';
+import { ThemeStateSchema } from './types.js';
 
 /**
  * Emitted whenever the resolved appearance changes - because the user flipped their OS

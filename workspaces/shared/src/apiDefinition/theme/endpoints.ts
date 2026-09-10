@@ -1,10 +1,10 @@
-import { InferEndpoints } from '../types';
+import { InferEndpoints } from '../types.js';
 import {
   GetThemeInputSchema,
   GetThemeOutputSchema,
   SetThemeSourceInputSchema,
   SetThemeSourceOutputSchema,
-} from './types';
+} from './types.js';
 
 export const themeApiName = 'theme';
 

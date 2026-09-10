@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiResponseSchema } from '../types';
+import { apiResponseSchema } from '../types.js';
 
 // Example domain entity, mirrored by electron-app's NoteRecord TypeORM
 // entity. Named NoteDto (rather than Note) to avoid colliding with that

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreateNoteInputSchema, GetNoteInputSchema, DeleteNoteInputSchema } from './types';
+import { CreateNoteInputSchema, GetNoteInputSchema, DeleteNoteInputSchema } from './types.js';
 
 describe('CreateNoteInputSchema', () => {
   it('accepts a valid title and content', () => {

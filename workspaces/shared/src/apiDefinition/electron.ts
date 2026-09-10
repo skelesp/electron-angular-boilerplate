@@ -1,5 +1,5 @@
-import { AppApiEvents, AppApiRegistry } from './registry';
-import { Unsubscribe } from './types';
+import { AppApiEvents, AppApiRegistry } from './registry.js';
+import { Unsubscribe } from './types.js';
 
 export interface ElectronAPI {
   /** Request/response: ask the main process for something and await its `ApiResponse`. */
