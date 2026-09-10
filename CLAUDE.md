@@ -909,7 +909,7 @@ platforms, which covers most of that ground, but it builds with `--dir` and does
 so a real `npm run package` and a look at a tagged release build are still worth doing for an
 ABI-moving major.
 
-Three version choices deviate from what a resolver would pick on its own, all on purpose:
+Four version choices deviate from what a resolver would pick on its own, all on purpose:
 
 - `better-sqlite3` is on **13.x** while TypeORM 1.1.1 declares a `^12.0.0` optional peer. v13 is
   the release that moved to N-API with in-tarball prebuilds, which is the entire reason the
@@ -932,6 +932,18 @@ Three version choices deviate from what a resolver would pick on its own, all on
   and revisit when Angular widens it; `.github/dependabot.yml` ignores typescript majors so it
   stops proposing the bump in the meantime. The version is pinned in three manifests — the root,
   `angular-app` and `e2e` — and they move together.
+- `@types/node` is held at **24.x** (`^24`) in `electron-app`, the only workspace that declares
+  it. Its majors track Node majors, and the Node that matters here is the one **Electron bundles**:
+  Electron 44 ships Node 24.19.0. The tooling runs Node 22 (`.nvmrc`, `engines`, the workflows),
+  so 24 is already the newer of the two bounds — nothing here runs anything newer. A 26.x pin,
+  which Dependabot did once raise, type-checks the main process against an API surface neither
+  runtime has, and the failure mode is the bad one: a Node 25/26-only call compiles clean and
+  throws at runtime, in the packaged app. `npm outdated` shows the tell, since `@types/node`'s
+  `latest` tag tracks the active LTS and so reads _lower_ than a too-new `Current`.
+  `.github/dependabot.yml` ignores its majors for the same reason it ignores `electron`'s: this is
+  not an independent upgrade. It moves when an Electron major moves — bump both together, to
+  whatever Node the new Electron bundles, which printing `process.versions.node` from the Electron
+  binary under `ELECTRON_RUN_AS_NODE=1` (see "Packaging") will tell you.
 
 ## Main-process lifecycle
 

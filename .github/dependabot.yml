@@ -65,6 +65,13 @@ updates:
       # bumped by hand alongside the Angular upgrade. See "Dependencies" in CLAUDE.md.
       - dependency-name: typescript
         update-types: [version-update:semver-major]
+      # @types/node majors track Node majors, and the Node that matters here is the one Electron
+      # bundles (Electron 44 ships Node 24), not the newest release line - nothing in this repo runs
+      # a Node newer than that. A major bump type-checks the main process against APIs no runtime
+      # here has, so the call compiles clean and throws in the packaged app. It moves when an
+      # Electron major moves, by hand, not on its own. See "Dependencies" in CLAUDE.md.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

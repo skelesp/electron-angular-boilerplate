@@ -22,7 +22,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^26.4.1",
+    "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "electron": "44.2.0",
     "esbuild": "^0.28.2",
