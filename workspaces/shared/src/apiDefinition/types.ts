@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ApiErrorCode, apiErrorCodeSchema } from './errors';
+import { ApiErrorCode, apiErrorCodeSchema } from './errors.js';
 
 interface BaseApiResponse {
   status: 'success' | 'error';

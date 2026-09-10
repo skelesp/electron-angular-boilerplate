@@ -1,4 +1,4 @@
-import { InferEndpoints } from '../types';
+import { InferEndpoints } from '../types.js';
 import {
   CreateNoteInputSchema,
   CreateNoteOutputSchema,
@@ -8,7 +8,7 @@ import {
   ListNotesOutputSchema,
   DeleteNoteInputSchema,
   DeleteNoteOutputSchema,
-} from './types';
+} from './types.js';
 
 export const noteApiName = 'note';
 

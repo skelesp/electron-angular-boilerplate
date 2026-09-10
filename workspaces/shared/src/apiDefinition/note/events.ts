@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InferEvents } from '../types';
+import { InferEvents } from '../types.js';
 
 /**
  * Emitted by the main process whenever the stored set of notes changes, so the renderer

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GetThemeInputSchema, SetThemeSourceInputSchema, SetThemeSourceOutputSchema } from './types';
+import { GetThemeInputSchema, SetThemeSourceInputSchema, SetThemeSourceOutputSchema } from './types.js';
 
 describe('theme schemas', () => {
   it('takes no input for a get', () => {

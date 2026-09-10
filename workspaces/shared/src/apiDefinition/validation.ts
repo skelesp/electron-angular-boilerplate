@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { apiRegistry, AppApiEvents, AppApiRegistry, eventRegistry } from './registry';
-import { EndpointDefinition, EventDefinition } from './types';
+import { apiRegistry, AppApiEvents, AppApiRegistry, eventRegistry } from './registry.js';
+import { EndpointDefinition, EventDefinition } from './types.js';
 
 // Flatten the nested apiRegistry (domain -> action -> EndpointDefinition)
 // into a single channel -> EndpointDefinition map, built once from the same

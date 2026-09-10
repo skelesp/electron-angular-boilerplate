@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiResponseSchema } from '../types';
+import { apiResponseSchema } from '../types.js';
 
 /**
  * What the app is *asked* to do about appearance, mirroring Electron's

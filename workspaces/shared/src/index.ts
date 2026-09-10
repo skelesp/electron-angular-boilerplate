@@ -1,1 +1,1 @@
-export * from './apiDefinition';
+export * from './apiDefinition/index.js';

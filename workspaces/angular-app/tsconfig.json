@@ -23,5 +23,8 @@
     "strictInputAccessModifiers": true,
     "strictTemplates": true
   },
-  "references": [{ "path": "../shared" }]
+  // The ESM half of shared's dual build. "moduleResolution": "bundler" above reads shared's
+  // "exports" map and takes the "import" condition, so dist/esm is what the renderer both
+  // type-checks against and bundles - naming it here keeps the reference honest.
+  "references": [{ "path": "../shared/tsconfig.esm.json" }]
 }

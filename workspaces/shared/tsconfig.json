@@ -1,9 +1,18 @@
 {
+  // The CommonJS half of the dual build; tsconfig.esm.json extends this file and overrides
+  // only the module format and the output directory. See "shared is dual-published" in
+  // CLAUDE.md. `moduleResolution` is deliberately left unset (so it defaults to node10,
+  // matching electron-app) - node10 is the mode that ignores this package's own "exports"
+  // map and falls back to "main"/"types", which is exactly what the main process wants.
   "extends": "../../tsconfig.json", // Extend the root tsconfig
   "compilerOptions": {
     "module": "CommonJS",
     "rootDir": "./src",
-    "outDir": "./dist",
+    "outDir": "./dist/cjs",
+    // Pinned rather than defaulted: with a nested outDir, tsc's default location for this
+    // file is inside dist/, and vendor-shared.mjs copies dist/ wholesale into the packaged
+    // app - a build artifact nobody needs shipped inside app.asar.
+    "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
     "composite": true,
     "declaration": true,
     "experimentalDecorators": true

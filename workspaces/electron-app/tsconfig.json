@@ -12,7 +12,15 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.spec.ts", "src/test-utils/**"],
-  "references": [{ "path": "../shared" }],
+  // Both halves of shared's dual build, for two different reasons. The main process
+  // type-checks and requires the CommonJS one (../shared). The ESM one is here because
+  // `compile` is `tsc --build . && npm run bundle:preload`, and esbuild picks the export
+  // condition from the *import kind*, not the output format - preload.ts's `import` of
+  // shared resolves through the "import" condition into dist/esm even though the bundle is
+  // emitted as CJS. Without this second reference, `npm --workspace=workspaces/electron-app
+  // run compile` on a tree where shared was never built would bundle against a directory
+  // that does not exist yet.
+  "references": [{ "path": "../shared" }, { "path": "../shared/tsconfig.esm.json" }],
   "ts-node": {
     // The TypeORM CLI (migration:generate/run/revert) runs through ts-node against this
     // tsconfig. Type-checking is skipped here (ts-node 10's checker predates this repo's

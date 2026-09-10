@@ -1,14 +1,14 @@
-import * as noteApi from './note/endpoints';
-import * as noteEventApi from './note/events';
-import * as themeApi from './theme/endpoints';
-import * as themeEventApi from './theme/events';
+import * as noteApi from './note/endpoints.js';
+import * as noteEventApi from './note/events.js';
+import * as themeApi from './theme/endpoints.js';
+import * as themeEventApi from './theme/events.js';
 
-export * from './note/endpoints';
-export * from './note/events';
-export * from './note/types';
-export * from './theme/endpoints';
-export * from './theme/events';
-export * from './theme/types';
+export * from './note/endpoints.js';
+export * from './note/events.js';
+export * from './note/types.js';
+export * from './theme/endpoints.js';
+export * from './theme/events.js';
+export * from './theme/types.js';
 
 // Add one entry per domain here. See the "Adding a new API" section in the
 // README for the full set of steps (shared -> electron-app -> angular-app).

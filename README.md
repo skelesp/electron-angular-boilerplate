@@ -225,8 +225,21 @@ Run from the repository root.
 
 - `electron-app`: `bundle:preload` (esbuild; see below), `migration:generate` /
   `migration:run` / `migration:revert`
-- `shared`: `watch` (`tsc --watch`)
+- `shared`: `watch` (`tsc --build --watch` over both of its projects)
 - `angular-app`: `start` (`ng serve`), `watch` (`ng build --watch`)
+
+### `shared` is built twice
+
+`shared` is the one package both processes import, and they want different module formats: the
+Angular renderer wants ESM (CommonJS costs it optimization bailouts), while the Electron main
+process is CommonJS and must stay that way. So it compiles to both — `dist/cjs` from
+`tsconfig.json`, `dist/esm` from `tsconfig.esm.json` — and the `exports` map in its
+`package.json` gives each consumer the right one. You don't have to think about it day to day;
+one thing does carry over into how you write code there:
+
+**relative imports inside `shared/src` need an explicit `.js` extension** (`'./registry.js'`,
+and `'./apiDefinition/index.js'` for a directory). TypeScript still resolves those to the `.ts`
+source; Node's ESM loader is what requires them.
 
 ### The preload script is bundled, not just compiled
 

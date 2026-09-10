@@ -38,6 +38,19 @@ entries below can be assembled from `git log` — see [CONTRIBUTING.md](CONTRIBU
 
 ### Changed
 
+- `shared` is dual-published: `dist/cjs` for the Electron main process, `dist/esm` for the
+  Angular renderer, selected by an `exports` map. The renderer's production build warned on
+  every run that the package "is not ESM", which costs it optimization bailouts, while the main
+  process is CommonJS and has to stay that way — so neither format alone was right. `main` and
+  `types` still point at the CommonJS build, because `electron-app`'s tsconfig resolves as
+  node10 and node10 cannot read an `exports` map at all.
+
+  **This changes how you write code in `shared`:** relative imports there now need an explicit
+  `.js` extension (`'./registry.js'`, and `'./apiDefinition/index.js'` for a directory).
+  TypeScript still resolves those to the `.ts` source; Node's ESM loader is what requires them,
+  and `electron-app`'s Vitest hands the ESM build to that loader directly. See "`shared` is
+  dual-published" in [CLAUDE.md](CLAUDE.md).
+
 - Roboto is bundled as its `latin-` subset instead of the full family. `@fontsource/roboto`'s
   bare `<weight>.css` entrypoints declare a @font-face per unicode subset, so three weights
   pulled 54 font files into the renderer — cyrillic, greek, math, symbols, vietnamese and

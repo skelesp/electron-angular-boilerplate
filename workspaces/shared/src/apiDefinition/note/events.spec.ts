@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NoteChangedPayloadSchema, noteEvents } from './events';
+import { NoteChangedPayloadSchema, noteEvents } from './events.js';
 
 describe('note events', () => {
   it('names its channel under the domain prefix', () => {
