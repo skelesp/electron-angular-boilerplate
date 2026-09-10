@@ -1,7 +1,7 @@
 {
   "name": "@electron-angular-boilerplate/shared",
   "version": "0.0.1",
-  "description": "",
+  "description": "Electron Angular Boilerplate - shared workspace.",
   "main": "./dist/cjs/index.js",
   "types": "./dist/cjs/index.d.ts",
   "exports": {
@@ -30,7 +30,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
-  "author": "",
+  "author": "Stijn Beeckmans",
   "license": "MIT",
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.0",

@@ -514,6 +514,15 @@ Three details in the `build` config exist for the release/auto-update path speci
   workflow therefore writes the git tag into that file before building; see below.
 - **`mac.target` includes `zip` alongside `dmg`.** Squirrel.Mac updates from a zip, so a
   dmg-only macOS release builds fine and then silently never updates.
+- **`description` and `author` in that same manifest are installer metadata, not npm
+  boilerplate**, and must stay non-empty. electron-builder reads them from `directories.app`'s
+  manifest — the description is what Windows shows in Programs & Features and what the AppImage's
+  `.desktop` entry carries as `Comment`, and the author becomes the publisher/maintainer. Empty
+  strings make it log `description is missed in the package.json` on every package run and ship an
+  app with no description at all. `npm run init` gives electron-app the description the consumer
+  answered with, not the `"<name> - <workspace> workspace."` label the other manifests get, for
+  exactly that reason; an empty author answer leaves all of them unchanged rather than blanking
+  the field again.
 
 Note that `--dir` builds produce **no** `latest*.yml` and no `app-update.yml`: electron-builder
 only writes update metadata for real installer targets. That is expected, and `updater.ts`

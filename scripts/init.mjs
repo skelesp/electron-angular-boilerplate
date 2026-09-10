@@ -323,18 +323,33 @@ function planJsonRewrites(answers, edits) {
     edits.set(path, `${JSON.stringify(json, null, 2)}\n`);
   };
 
+  // An empty author is "leave it alone", the same answer LICENSE gets - these manifests ship
+  // with a real name in them, and blanking one would put back the empty `author` that makes
+  // electron-builder warn on every package run.
+  const setAuthor = (json) => {
+    if (answers.author.length > 0) json.author = answers.author;
+  };
+
   patch('package.json', (json) => {
     json.description = answers.description;
     json.keywords = ['electron', 'angular', 'sqlite', 'desktop'];
-    json.author = answers.author;
+    setAuthor(json);
   });
 
-  for (const workspace of ['shared', 'electron-app']) {
-    patch(`workspaces/${workspace}/package.json`, (json) => {
-      json.description = `${answers.productName} - ${workspace} workspace.`;
-      json.author = answers.author;
-    });
-  }
+  patch('workspaces/shared/package.json', (json) => {
+    json.description = `${answers.productName} - shared workspace.`;
+    setAuthor(json);
+  });
+
+  // electron-app is `directories.app`, so this manifest - not the root one - is what
+  // electron-builder reads: its description becomes the installer's own description (the one
+  // Windows shows in Programs & Features, and the AppImage .desktop entry's Comment), and its
+  // author becomes the publisher/maintainer. It gets the answer the consumer actually gave
+  // rather than a "- electron-app workspace." label, which no end user should ever be shown.
+  patch('workspaces/electron-app/package.json', (json) => {
+    json.description = answers.description;
+    setAuthor(json);
+  });
 }
 
 function planLicenseRewrite(answers, edits, warnings) {
