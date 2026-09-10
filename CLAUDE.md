@@ -282,14 +282,41 @@ To modify or add API surface, changes touch files in this order:
    database yet hits it, which is why it passed locally and broke on every fresh CI runner. The
    CLI data source still globs, deliberately: it runs from source, outside the archive.
 6. **`electron-app/src/handlersRegistry.ts`** — spread the new domain's handlers object into
-   `handlersRegistry`. `wrapHandler` (in this file) validates every raw IPC payload against the
-   channel's zod input schema before the handler runs, validates the response against the
-   channel's output schema on the way back out (in dev), and normalizes both success and thrown
-   errors into an `ApiResponse<T>` envelope (`{status: 'success', data} | {status: 'error', error}`).
-   This is the one place that behavior lives — don't duplicate it in individual handlers.
+   `handlersRegistry`. `wrapHandler` (in this file) checks that the invoke came from the app's
+   own renderer (see "Every invoke is checked against its sender" below), validates every raw
+   IPC payload against the channel's zod input schema before the handler runs, validates the
+   response against the channel's output schema on the way back out (in dev), and normalizes
+   both success and thrown errors into an `ApiResponse<T>` envelope
+   (`{status: 'success', data} | {status: 'error', error}`). This is the one place that
+   behavior lives — don't duplicate it in individual handlers.
 7. **`angular-app/src/services/<domain>.service.ts`** — calls `ElectronService.invoke(channel, data)`,
    which is typed against `AppApiRegistry` end to end, so a wrong channel name or payload shape
    is a compile error in Angular, not a runtime failure.
+
+### Every invoke is checked against its sender
+
+`wrapHandler` returns `ipcMain.handle`'s own `(event, input)` listener shape rather than an
+input-only function, so that `registerAllHandlers` hands it the `IpcMainInvokeEvent` instead of
+discarding it. `isTrustedSender` resolves `event.senderFrame?.url` and passes it to
+**`security.ts`'s `isInternalUrl`** — the same predicate the navigation guards use — and anything
+else gets an `ApiErrorCode.FORBIDDEN` envelope before the channel is even looked up. A null
+`senderFrame` (the frame navigated away or closed while the call was in flight) is a rejection
+too: there is nothing left to vouch for it.
+
+Reusing `isInternalUrl` is the load-bearing part. A second copy of "is this the app's own
+content" would drift, and the failure mode is asymmetric — it either lets a frame the
+navigation guards blocked keep invoking IPC, or, much more likely, starts rejecting the real
+app's own calls in a packaged build only, where the URL is a `file:` path under `renderer/`
+rather than the dev server origin. The e2e suite is what covers that second half, since it is
+the only thing here that runs against a packaged app.
+
+This is **defence in depth and nothing else** — today it rejects nothing. A single window, the
+navigation guards, `will-attach-webview` being refused outright and preload's channel
+allowlist already leave a hostile sender no route to a handler. It is here because each of
+those is a separate decision a consumer might reasonably reverse (a second window on a
+third-party page, an `<iframe>` for some integration, a guard relaxed for an OAuth redirect),
+and this is the last checkpoint before a handler reaches the database. Don't remove it on the
+grounds that nothing currently trips it.
 
 ### Outputs are validated too
 

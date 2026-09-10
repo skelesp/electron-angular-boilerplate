@@ -1,6 +1,7 @@
-import { app, session, shell, WebContents } from 'electron';
+import { session, shell, WebContents } from 'electron';
 import { isAbsolute, join, relative } from 'path';
 import { fileURLToPath } from 'url';
+import { isPackagedBuild } from './env';
 import { getLogger } from './logger';
 
 /** Where the Angular dev server runs; the only origin the renderer may navigate to in dev. */
@@ -38,8 +39,13 @@ export function applyProductionCsp() {
  * Is this URL part of the app itself? In dev that's the Angular dev server origin; when
  * packaged it's any file under the bundled renderer directory (and nothing outside it, so a
  * `file:///etc/passwd` or a traversal out of RENDERER_DIR is not "internal").
+ *
+ * Exported because handlersRegistry.ts checks IPC senders against exactly this notion of
+ * "the app's own content" (see isTrustedSender there). The two must agree - a second copy of
+ * this rule that drifted would either let a frame the navigation guards blocked go on
+ * invoking IPC, or, far more likely, start rejecting the app's own calls after a change here.
  */
-function isInternalUrl(target: string): boolean {
+export function isInternalUrl(target: string): boolean {
   let parsed: URL;
   try {
     parsed = new URL(target);
@@ -47,7 +53,7 @@ function isInternalUrl(target: string): boolean {
     return false;
   }
 
-  if (!app.isPackaged) {
+  if (!isPackagedBuild()) {
     // Chromium's own inspector, which createWindow() opens in dev only. Guards are attached to
     // every webContents including DevTools', and blocking its internal navigation would be a
     // dev-only annoyance with nothing to gain - a renderer can't reach devtools: on its own.
