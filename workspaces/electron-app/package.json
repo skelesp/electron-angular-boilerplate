@@ -1,7 +1,7 @@
 {
   "name": "electron-app",
   "version": "1.0.0",
-  "description": "",
+  "description": "Boilerplate for an Angular frontend in Electron, with a shared, runtime-validated API contract and a SQLite database.",
   "main": "dist/main.js",
   "type": "commonjs",
   "scripts": {
@@ -19,7 +19,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
-  "author": "",
+  "author": "Stijn Beeckmans",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^24",
