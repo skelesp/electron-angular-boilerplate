@@ -64,7 +64,9 @@ npm start                      # build:shared, then run watch:shared + Angular d
 
 Per-workspace scripts (run with `npm --workspace=workspaces/<name> run <script>`):
 
-- `shared`: `dev` (`tsc --watch`), `compile`/`build`/`build:prod` (`tsc --build`), `watch`.
+- `shared`: `compile`/`build`/`build:prod`/`watch`, all of which write the `dist/*/package.json`
+  markers and then `tsc --build` **both** of its projects (`tsconfig.json` and
+  `tsconfig.esm.json`) — see "`shared` is dual-published" below. `dev` is an alias of `watch`.
 - `electron-app`: `start` (`tsc && npm run bundle:preload && electron .`) — expects Angular
   already serving at `localhost:4200`; `compile` (`tsc --build`, then `bundle:preload`);
   `bundle:preload` (esbuild — see the section below, and don't drop it);
@@ -76,7 +78,9 @@ VS Code: the `Electron+Angular debug` launch compound (`.vscode/launch.json`) ru
 `localhost:4200` on port 9224.
 
 `shared` and `electron-app` use TypeScript project references (`tsc --build`) with
-`composite: true`; `angular-app` also references `shared`. If cross-workspace types look
+`composite: true`; `angular-app` also references `shared`. Because `shared` is built twice
+(see the next section but one), those references name a specific half: `angular-app` points at
+`../shared/tsconfig.esm.json`, and `electron-app` points at both. If cross-workspace types look
 stale, rebuild `shared` first — everything else imports from `@electron-angular-boilerplate/shared`'s
 compiled `dist`, not its source.
 
@@ -115,6 +119,74 @@ Three consequences worth keeping in mind:
 
 `workspaces/e2e` is what actually catches a regression here, since a broken bridge only shows
 up once the app is packaged and launched.
+
+One more thing to know about this bundle: **esbuild picks the export condition from the import
+kind, not from the output format.** `preload.ts` reaches `shared` with an `import` statement, so
+esbuild takes the `import` condition and inlines the **ESM** build even though `--format=cjs`
+makes the result CommonJS. That is fine — and it is why `electron-app`'s tsconfig references
+both halves of `shared`. See the next section.
+
+## `shared` is dual-published: ESM for the renderer, CommonJS for the main process
+
+`shared` is compiled twice from one source tree, and an `exports` map in its `package.json`
+hands each consumer the half it wants:
+
+```
+workspaces/shared/
+  tsconfig.json          module: CommonJS  ->  dist/cjs/   (+ package.json {"type":"commonjs"})
+  tsconfig.esm.json      module: ES2022    ->  dist/esm/   (+ package.json {"type":"module"})
+```
+
+The reason is a warning the Angular production build used to print on every run — `Module
+'@electron-angular-boilerplate/shared' … is not ESM. CommonJS or AMD dependencies can cause
+optimization bailouts.` The renderer is the only consumer that wants ESM, and the main process
+must keep getting CommonJS, so neither format alone is right. This is the same shape `zod` —
+this package's only dependency — already ships.
+
+Who ends up with which, and by what mechanism:
+
+| consumer                                                             | mechanism                                                                         | gets       |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------- |
+| `electron-app`'s `tsc` (`module: CommonJS`, no `moduleResolution`)   | resolves as node10, which **ignores `exports`** entirely and reads `main`/`types` | `dist/cjs` |
+| the packaged main process (`"type": "commonjs"`, `require()`)        | `exports` → `require` condition                                                   | `dist/cjs` |
+| `preload.ts` via esbuild                                             | `import` statement → `import` condition                                           | `dist/esm` |
+| `angular-app` (`moduleResolution: "bundler"`) and the Angular build  | `exports` → `import` condition                                                    | `dist/esm` |
+| `electron-app`'s Vitest (externalizes `node_modules`, Node loads it) | ESM import → `import` condition                                                   | `dist/esm` |
+
+Five things here are load-bearing:
+
+- **`main`/`types` still point at `dist/cjs`.** They are not vestigial: node10 resolution — what
+  `electron-app`'s tsconfig gets by defaulting `moduleResolution` — cannot read an `exports` map
+  at all, so they are the entire contract for the main process's type-checking. Leaving
+  `moduleResolution` unset in `shared/tsconfig.json` is deliberate for the same reason: that
+  project is the one that mirrors how `electron-app` consumes it.
+- **Every relative specifier in `shared/src` carries an explicit `.js` extension**, and
+  `src/index.ts` says `'./apiDefinition/index.js'` rather than `'./apiDefinition'`. Node's ESM
+  loader has no extension search and no directory-index resolution, so the ESM emit would
+  otherwise be loadable by bundlers but not by Node — and `electron-app`'s Vitest externalizes
+  `node_modules` and hands it to Node's own loader, so that is not a hypothetical. TypeScript
+  resolves `'./registry.js'` to the source `registry.ts` under both node10 and bundler
+  resolution, and both emits pass the specifier through verbatim, which is what lets one source
+  tree serve both. **A new file in `shared/src` must follow this.**
+- **`dist/cjs/package.json` and `dist/esm/package.json` are generated**, by
+  `shared/scripts/write-dist-manifests.mjs`. Both directories are full of plain `.js` files, and
+  the nearest `package.json`'s `type` field is the only thing that tells a Node-style loader
+  which dialect it is reading — something the package's own manifest can only say once. Every
+  `shared` script that runs `tsc` runs that script **first**, not after, so one invocation also
+  covers `--watch` and a preceding `rimraf dist` can never leave a build unmarked.
+- **`electron-app` references both projects**, `../shared` and `../shared/tsconfig.esm.json`.
+  It type-checks against the CommonJS one, but its `compile` is `tsc --build . && npm run
+bundle:preload`, and that esbuild step resolves into `dist/esm` (see above). Without the
+  second reference, `npm --workspace=workspaces/electron-app run compile` on a tree where
+  `shared` was never built would bundle against a directory that doesn't exist.
+- **`tsBuildInfoFile` is pinned** to the workspace root in both projects. With a nested `outDir`
+  tsc defaults it to inside `dist/` — and `vendor-shared.mjs` copies `dist/` wholesale into the
+  packaged app, so the default would ship a build artifact inside `app.asar`.
+
+`vendor-shared.mjs` needs no special handling for any of this, and that is worth preserving:
+everything the `exports` map names lives under `dist/` or is `package.json` itself, which is
+exactly the pair it already copies. An `exports` entry pointing anywhere else would break the
+packaged app only — dev resolves through the live workspace symlink and would look fine.
 
 ## Initializing a copy of the template
 
@@ -439,11 +511,20 @@ attach configurations are unaffected. They simply don't get copied into `app.asa
 The second negation is not redundant: `files` patterns are relative to `directories.app`, so
 `dist/**/*.map` matches `electron-app/dist/` only, and the `shared` package that `prepackage`
 vendors into `electron-app/node_modules/` (see `vendor-shared.mjs` above) arrives with 13 maps
-of its own. It is 34 KB rather than 1.7 MB, but it is the same first-party TypeScript — the
+of its own — now 26, since `shared` is built twice (see "`shared` is dual-published" above);
+the `**/*.map` glob covers `dist/cjs` and `dist/esm` alike. It is 34 KB rather than 1.7 MB, but
+it is the same first-party TypeScript — the
 whole IPC contract — so it goes the same way. `files` negations do apply to `node_modules`
 content, which is what makes one mechanism enough; `vendor-shared.mjs` copies `dist` wholesale
 and stays out of this. The scope in that path is a template placeholder like any other, and
 `npm run init` rewrites it (`PLACEHOLDER.scope`) — if you change it by hand, change it here too.
+
+`shared`'s **ESM build is deliberately not negated out** the way its maps are, even though the
+packaged main process only ever `require()`s `dist/cjs` — the preload bundle inlines `dist/esm`
+at build time, so nothing in the shipped app reads it. It is ~40 KB, and a `files` negation that
+amputated half a dual package would be a trap the first time anything resolved the `import`
+condition at runtime: the archive would be missing a path its own `exports` map advertises, and
+the failure would appear only in a packaged build.
 
 The argument for shipping them is that `electron-log` writes main-process stack traces to a log
 file a user can send to a maintainer, and unmapped traces point into compiled JS — a real
