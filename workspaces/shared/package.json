@@ -2,15 +2,28 @@
   "name": "@electron-angular-boilerplate/shared",
   "version": "0.0.1",
   "description": "",
-  "main": "dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "clean": "rimraf dist && rimraf tsconfig.tsbuildinfo",
-    "dev": "tsc --watch",
-    "compile": "tsc --build . --verbose",
+    "clean": "rimraf dist tsconfig.tsbuildinfo tsconfig.esm.tsbuildinfo",
+    "dev": "npm run watch",
+    "compile": "node scripts/write-dist-manifests.mjs && tsc --build . tsconfig.esm.json --verbose",
     "build": "npm run clean && npm run compile",
-    "build:prod": "tsc --build .",
-    "watch": "tsc --build . --watch",
+    "build:prod": "node scripts/write-dist-manifests.mjs && tsc --build . tsconfig.esm.json",
+    "watch": "node scripts/write-dist-manifests.mjs && tsc --build . tsconfig.esm.json --watch",
     "lint": "eslint .",
     "lint:fix": "npm run lint -- --fix",
     "test": "vitest run",

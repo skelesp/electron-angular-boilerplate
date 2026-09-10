@@ -34,7 +34,7 @@ yarn-error.log
 .history/*
 
 # Miscellaneous
-workspaces/*/tsconfig.tsbuildinfo
+workspaces/*/*.tsbuildinfo
 
 # System files
 .DS_Store

@@ -1,0 +1,16 @@
+{
+  // The ESM half of the dual build. Inherits include/exclude/rootDir/composite/declaration
+  // from tsconfig.json and overrides only what makes the emit ESM.
+  //
+  // `moduleResolution` has to be stated explicitly: with an ES* `module` the default is
+  // "Classic", which cannot resolve `zod`. "Bundler" is the mode the Angular renderer - the
+  // consumer this output exists for - resolves with, so the ESM build type-checks against
+  // its dependencies exactly the way the renderer will.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "outDir": "./dist/esm",
+    "tsBuildInfoFile": "./tsconfig.esm.tsbuildinfo"
+  }
+}
