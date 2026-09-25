@@ -54,7 +54,7 @@
     "*.{ts,mts,cts,js,mjs,cjs,json,css,html,md,yml,yaml}": "prettier --write"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.2",
+    "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.2",
     "@eslint/js": "^10.0.1",
     "concurrently": "^10.0.5",
