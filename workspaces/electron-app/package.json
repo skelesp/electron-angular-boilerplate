@@ -22,7 +22,7 @@
   "author": "Stijn Beeckmans",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^24",
+    "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.0.0",
     "electron": "44.2.0",
     "esbuild": "^0.28.2",
